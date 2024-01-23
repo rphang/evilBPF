@@ -9,6 +9,7 @@ This repository contains a collection of eBPF / XDP programs that I've written w
 | Type | Name | Description | Notes |
 | ---- | ---- | ----------- | ----- |
 | XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | multiple demo used to show the features offered by eBPF |
+| TP | [hide_pid](hide_pid) | Hide a process (pid) from the system | |
 
 ## Requirements
 
