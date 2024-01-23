@@ -42,7 +42,12 @@ int main(int argc, char *argv[])
     printf("Successfully started!\n");
 
     // Wait for Ctrl-C
-    signal(SIGINT, SIG_IGN);
-    signal(SIGTERM, SIG_IGN);
-    pause();
+    signal(SIGINT, cleanup);
+	signal(SIGTERM, cleanup);
+    printf("Press Ctrl-C to stop\n");
+    while (true)
+    {
+        sleep(1);
+    }
+    
 }
