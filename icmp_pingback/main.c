@@ -63,11 +63,9 @@ int main(int argc, char *argv[])
 	/* attach BPF program to interface with XDP mode */
 	ret = bpf_xdp_attach(ifindex, bpf_program__fd(prog), xdp_flags, 0);
 	if (ret) {
-		err = libbpf_get_error(ret);
+		err = libbpf_get_error(prog);
 		printf("Error, Set XDP fd on iface %d (%s): %d\n", ifindex, argv[1], err);
 		return ret;
-	}else{
-		printf("Set XDP fd on iface %d success\n", ifindex);
 	}
 	err = bpf_obj_get_info_by_fd( bpf_program__fd(prog), &info, &info_len);
 	if (err) {
@@ -83,7 +81,7 @@ int main(int argc, char *argv[])
 	printf("Program is running on interface %s (ifindex %d)\n", argv[1], ifindex);
     while (1)
     {
-
+		sleep(3);
     }
     
 	return 0;

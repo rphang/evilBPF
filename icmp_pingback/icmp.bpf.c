@@ -10,6 +10,21 @@
 #define swap(x, y) { typeof(x) tmp = x; x = y; y = tmp; }
 #define eth_swap(buff, src, dst) { memcpy(buff, src, ETH_ALEN); memcpy(src, dst, ETH_ALEN); memcpy(dst, buff, ETH_ALEN); }
 
+static __always_inline __u16
+csum_fold_helper(__u64 csum)
+{
+    int i;
+#pragma unroll
+    for (i = 0; i < 4; i++)
+    {
+        if (csum >> 16)
+            csum = (csum & 0xffff) + (csum >> 16);
+    }
+    return ~csum;
+}
+
+
+
 SEC("xdp")
 int icmp_prog_reply(struct xdp_md *ctx)
 {
@@ -42,17 +57,19 @@ int icmp_prog_reply(struct xdp_md *ctx)
         icmph->type = 0;
         // recalculate the checksum
         icmph->checksum = 0;
-        icmph->checksum = bpf_csum_diff((__be32 *)icmph, sizeof(*icmph), 0, 0, 0);
+        icmph->checksum = csum_fold_helper(bpf_csum_diff(0, 0, (unsigned int *)icmph, sizeof(struct icmphdr), 0));
         // swap the source and destination IP addresses
         swap(iph->saddr, iph->daddr);
+        iph->ttl = 64;
+        iph->id = 24851;
         // recalculate the IP header checksum
         iph->check = 0;
-        iph->check = bpf_csum_diff((__be32 *)iph, sizeof(*iph), 0, 0, 0);
+        iph->check = csum_fold_helper(bpf_csum_diff(0, 0, (unsigned int *)iph, sizeof(struct iphdr), 0));
         // recalculate the Ethernet frame checksum
         char buff[ETH_ALEN];
         eth_swap(buff, eth->h_source, eth->h_dest);
         // send the packet back
-        return XDP_PASS;
+        return XDP_TX;
     }
 
     if (icmph->type == 0) {
