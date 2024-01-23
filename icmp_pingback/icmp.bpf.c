@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#include "icmp.bpf.h"
+#include "bpf_helper.h"
 
 SEC("xdp")
 int icmp_prog_reply(struct xdp_md *ctx)
