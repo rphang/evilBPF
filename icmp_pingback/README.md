@@ -13,3 +13,4 @@ All variants kinda based on the same code, but each one adds a way to load or us
 | Variant | Description |
 | ------- | ----------- |
 | [minimum](minimum) | The bare minimum to get a working XDP program. (no maps, no skel) |
+| [maps](maps) | Adds a map to the program to enable/disable the pingback service on runtime. |

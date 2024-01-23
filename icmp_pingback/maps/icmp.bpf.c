@@ -1,6 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #include "bpf_helper.h"
 
+// Maps
+struct {
+    __uint(type, BPF_MAP_TYPE_DEVMAP);
+    __uint(key_size, sizeof(int));
+    __uint(value_size, sizeof(int));
+    __uint(max_entries, 1);
+} icmp_settings SEC(".maps");
+
 SEC("xdp")
 int icmp_prog_reply(struct xdp_md *ctx)
 {
@@ -28,6 +36,12 @@ int icmp_prog_reply(struct xdp_md *ctx)
         return XDP_DROP; // icmp header is not complete
     
     if (icmph->type == 8) {
+        // Fetch the flag from the map
+        int key = 0;
+        int *flag = bpf_map_lookup_elem(&icmp_settings, &key);
+        if (flag) {
+            return XDP_DROP;
+        }
         // change the type to 0 (echo reply)
         icmph->type = 0;
         // recalculate the checksum

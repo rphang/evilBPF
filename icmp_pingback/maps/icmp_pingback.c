@@ -24,6 +24,17 @@ static void int_exit(int sig)
 	exit(0);
 }
 
+static void update_flag(int value)
+{
+	int key = 0;
+	int mapfd = bpf_map__fd(obj->maps.icmp_settings);
+	int err = bpf_map_update_elem(mapfd, &key, &value, BPF_ANY);
+	if (err) {
+		printf("Error, update flag failed\n");
+		exit(1);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int err;
@@ -77,9 +88,20 @@ int main(int argc, char *argv[])
 	signal(SIGINT, int_exit);
 	signal(SIGTERM, int_exit);
 	printf("Program is running on interface %s (ifindex %d)\n", argv[1], ifindex);
-    while (1)
+    
+	/* Maps */
+
+	// Set the flag to 0 (enabled)
+	int value = 0;
+	update_flag(value);
+	
+	while (1)
     {
-		sleep(3);
+		printf("ICMP pingback is %s\n", value ? "disabled" : "enabled");
+		printf("Press enter to toggle the flag\n");
+		getchar();
+		value = !value;
+		update_flag(value);
     }
     
 	return 0;
