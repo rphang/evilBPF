@@ -24,6 +24,14 @@ You may not have all of the above packages in your distribution's package reposi
 
 - [libbpf](https://github.com/libbpf/libbpf)
 
+## Installation
+
+As we are using submodules, you'll need to clone this repository with the `--recursive` flag:
+
+```bash
+git clone https://github.com/rphang/ebpf-playground.git --recursive
+```
+
 ## Roadmap
 
 - [1/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
