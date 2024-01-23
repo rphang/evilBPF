@@ -28,7 +28,6 @@ int icmp_prog_reply(struct xdp_md *ctx)
         return XDP_DROP; // icmp header is not complete
     
     if (icmph->type == 8) {
-        bpf_printk("ICMP echo request received\n");
         // change the type to 0 (echo reply)
         icmph->type = 0;
         // recalculate the checksum

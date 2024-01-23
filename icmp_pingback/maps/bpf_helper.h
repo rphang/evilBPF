@@ -5,7 +5,7 @@
 #define ETH_ALEN 6
 #define overflow(x, d) (x + 1 > (typeof(x))d)
 #define swap(x, y) { typeof(x) tmp = x; x = y; y = tmp; }
-#define eth_swap(buff, src, dst) { memcpy(buff, src, ETH_ALEN); memcpy(src, dst, ETH_ALEN); memcpy(dst, buff, ETH_ALEN); }
+#define eth_swap(buff, src, dst) { __builtin_memcpy(buff, src, ETH_ALEN); __builtin_memcpy(src, dst, ETH_ALEN); __builtin_memcpy(dst, buff, ETH_ALEN); }
 
 #define ntohs(x) __builtin_bswap16(x)
 
