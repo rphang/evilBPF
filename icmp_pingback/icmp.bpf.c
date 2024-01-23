@@ -10,7 +10,7 @@
 #define swap(x, y) { typeof(x) tmp = x; x = y; y = tmp; }
 #define eth_swap(buff, src, dst) { memcpy(buff, src, ETH_ALEN); memcpy(src, dst, ETH_ALEN); memcpy(dst, buff, ETH_ALEN); }
 
-SEC("icmp_reply")
+SEC("xdp")
 int icmp_prog_reply(struct xdp_md *ctx)
 {
     // Read packet data into buffer

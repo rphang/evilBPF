@@ -8,7 +8,7 @@ This repository contains a collection of eBPF / XDP programs that I've written w
 
 | Type | Name | Description |
 | ---- | ---- | ----------- |
-| XDP (libxdp) | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. |
+| XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. |
 
 ## Requirements
 
@@ -17,13 +17,12 @@ For compiling eBPF programs, you'll need the following:
 - Debian, Ubuntu, or other Debian-based Linux distribution
 
 ```bash
-sudo apt install clang llvm libelf-dev libbpf-dev libxdp-dev gcc-multilib linux-headers-$(uname -r) build-essential
+sudo apt install clang llvm libelf-dev libbpf-dev gcc-multilib linux-headers-$(uname -r) build-essential
 ```
 
 You may not have all of the above packages in your distribution's package repository. If that's the case, you'll need to compile and install the following packages from source:
 
 - [libbpf](https://github.com/libbpf/libbpf)
-- [libxdp](https://github.com/xdp-project/xdp-tools/tree/master/lib/libxdp)
 
 ## Roadmap
 

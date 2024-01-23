@@ -4,9 +4,9 @@ TARGET  := icmp_pingback
 BPF_SRC := $(wildcard *.bpf.c)
 SRC     := $(filter-out $(BPF_SRC), $(wildcard *.c))
 ARCH	:= $(shell uname -m)
-CFLAGS  ?= -g
+CFLAGS  ?= -Wall -O2 -g -static
 LDFLAGS ?= 
-LIBS     = -lbpf -lxdp
+LIBS     = -I../lib/libbpf/src -L../lib/libbpf/src/ -l:libbpf.a -lelf -lz
 
 all: bpf user-space
 
@@ -16,7 +16,7 @@ clean:
 
 # Build the user-space program
 user-space: $(SRC)
-	clang -Wall -O2 -g -o $(TARGET) $(SRC) $(CFLAGS) $(LDFLAGS) $(LIBS)
+	clang -Wall -O2 -g -o $(TARGET) $(SRC) $(LIBS) $(CFLAGS) $(LDFLAGS)
 
 # Build the eBPF program
 bpf: $(BPF_SRC)
