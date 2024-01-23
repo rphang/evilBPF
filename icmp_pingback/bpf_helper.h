@@ -22,6 +22,19 @@ csum_fold_helper(__u64 csum)
     return ~csum;
 }
 
+static inline void csum_replace(uint16_t *sum, uint16_t old, uint16_t new)
+{
+	uint16_t csum = ~*sum;
+
+	csum += ~old;
+	csum += csum < (uint16_t)~old;
+
+	csum += new;
+	csum += csum < (uint16_t)new;
+
+	*sum = ~csum;
+}
+
 /* From linux/bpf.h */
 struct xdp_md {
 	__u32 data;

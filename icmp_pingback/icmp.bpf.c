@@ -32,8 +32,7 @@ int icmp_prog_reply(struct xdp_md *ctx)
         // change the type to 0 (echo reply)
         icmph->type = 0;
         // recalculate the checksum
-        icmph->checksum = 0;
-        icmph->checksum = csum_fold_helper(bpf_csum_diff(0, 0, (unsigned int *)icmph, sizeof(struct icmphdr), 0));
+        csum_replace(&icmph->checksum, 8, 0);
         // swap the source and destination IP addresses
         swap(iph->saddr, iph->daddr);
         iph->ttl = 64;
