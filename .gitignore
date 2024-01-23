@@ -1,3 +1,4 @@
 .vscode/
 vmlinux.h
+*.skel.h
 *.o

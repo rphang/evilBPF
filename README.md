@@ -6,9 +6,9 @@ This repository contains a collection of eBPF / XDP programs that I've written w
 
 ## Programs
 
-| Type | Name | Description |
-| ---- | ---- | ----------- |
-| XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. |
+| Type | Name | Description | Notes |
+| ---- | ---- | ----------- | ----- |
+| XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | Demo used to show the features offered by eBPF |
 
 ## Requirements
 
@@ -27,6 +27,8 @@ You may not have all of the above packages in your distribution's package reposi
 ## Roadmap
 
 - [1/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
+
+/sys/kernel/debug/kprobes/list (list of registered kprobes)
 
 ## Resources
 
