@@ -38,6 +38,9 @@ int icmp_prog_reply(struct xdp_md *ctx)
     if (icmph->type == 8) {
         // Fetch the flag from the map
         int key = 0;
+        // On some high network load, the map lookup may slow down the network
+        // We can use a local variable to store the flag and update it every 10 seconds
+        // Or have a static counter to update it every X packets
         int *flag = bpf_map_lookup_elem(&icmp_settings, &key);
         if (flag) {
             return XDP_DROP;

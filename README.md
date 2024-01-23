@@ -8,7 +8,7 @@ This repository contains a collection of eBPF / XDP programs that I've written w
 
 | Type | Name | Description | Notes |
 | ---- | ---- | ----------- | ----- |
-| XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | Demo used to show the features offered by eBPF |
+| XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | multiple demo used to show the features offered by eBPF |
 
 ## Requirements
 
@@ -17,20 +17,47 @@ For compiling eBPF programs, you'll need the following:
 - Debian, Ubuntu, or other Debian-based Linux distribution
 
 ```bash
-sudo apt install clang llvm libelf-dev libbpf-dev gcc-multilib linux-headers-$(uname -r) build-essential
+sudo apt install clang llvm libelf-dev gcc-multilib linux-headers-$(uname -r) build-essential
 ```
 
-You may not have all of the above packages in your distribution's package repository. If that's the case, you'll need to compile and install the following packages from source:
-
-- [libbpf](https://github.com/libbpf/libbpf)
+Make sure that the version of `clang` and `llvm` installed is `>= 10.0.0`.
 
 ## Installation
+
+### Getting the source code
 
 As we are using submodules, you'll need to clone this repository with the `--recursive` flag:
 
 ```bash
 git clone https://github.com/rphang/ebpf-playground.git --recursive
 ```
+
+If you've already cloned this repository without the `--recursive` flag, you can run the following command to clone the submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Compiling the programs
+
+Each program has its own directory, and each directory has its own `Makefile`. To compile a program, simply `cd` into the program's directory and run `make`:
+
+```bash
+cd ..
+make
+```
+
+This will compile the program and generate the following files:
+- **`<program>`**: The application that loads the eBPF program.
+- **`<program>.bpf.o`**: The compiled eBPF program.
+- **`<program>.skel.h`**: The skeleton code for the eBPF program.
+- **`vmlinux.h`**: The kernel headers for the kernel version that you are running.
+
+## Known issues
+
+On my dev machine, my `vmlinux.h` file is generated without the `xdp_md` struct. I for now have no idea why this is the case, but I've found a workaround by simply
+redifining the `xdp_md` struct in the application code. This is not ideal, but it works for now. (You may need to remove it if you are not facing this issue)
+
 
 ## Roadmap
 
