@@ -8,6 +8,7 @@
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
+#include <sys/resource.h>
 
 static __u32 xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST;
 
@@ -36,6 +37,17 @@ int main(int argc, char *argv[])
 	ifindex = if_nametoindex(argv[1]);
 	if (!ifindex) {
 		printf("get ifindex from interface name failed\n");
+		return 1;
+	}
+
+	struct rlimit rlim = {
+		.rlim_cur = 512UL << 20,
+		.rlim_max = 512UL << 20,
+	};
+
+	err = setrlimit(RLIMIT_MEMLOCK, &rlim);
+	if (err) {
+		fprintf(stderr, "failed to change rlimit\n");
 		return 1;
 	}
     

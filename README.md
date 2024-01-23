@@ -26,7 +26,7 @@ You may not have all of the above packages in your distribution's package reposi
 
 ## Roadmap
 
-- [ ] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
+- [1/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
 
 ## Resources
 
