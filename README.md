@@ -65,9 +65,6 @@ redifining the `xdp_md` struct in the application code. This is not ideal, but i
 - [2/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
 - [ ] Steal nginx passwd, authorization header, and cookie with openssl support (uprobes)
 
-
-/sys/kernel/debug/kprobes/list (list of registered kprobes)
-
 ## Resources
 
 Alot of the general resources I've used to learn about eBPF and XDP are listed below:
