@@ -9,7 +9,7 @@ This repository contains a collection of eBPF / XDP programs that I've written w
 | Type | Name | Description | Notes |
 | ---- | ---- | ----------- | ----- |
 | XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | multiple demo used to show the features offered by eBPF |
-| TP | [hide_pid](hide_pid) | Hide a process (pid) from the system | |
+| TP | [hide_pid](hide_pid) | Hide a process (pid) from the system | Heavily inspired by [bad-bpf](https://github.com/pathtofile/bad-bpf) with some modifications |
 
 ## Requirements
 
@@ -44,7 +44,7 @@ git submodule update --init --recursive
 Each program has its own directory, and each directory has its own `Makefile`. To compile a program, simply `cd` into the program's directory and run `make`:
 
 ```bash
-cd ..
+cd <program>...
 make
 ```
 
@@ -60,15 +60,17 @@ On my dev machine, my `vmlinux.h` file is generated without the `xdp_md` struct.
 redifining the `xdp_md` struct in the application code. This is not ideal, but it works for now. (You may need to remove it if you are not facing this issue)
 
 
-## Roadmap
+## Roadmap & Ideas
 
-- [1/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
+- [2/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
+- [ ] Steal nginx passwd, authorization header, and cookie with openssl support (uprobes)
+
 
 /sys/kernel/debug/kprobes/list (list of registered kprobes)
 
 ## Resources
 
-Alot of the resources I've used to learn about eBPF and XDP are listed below:
+Alot of the general resources I've used to learn about eBPF and XDP are listed below:
 
 - [libbpf-bootstrap: demo BPF applications](https://github.com/libbpf/libbpf-bootstrap) by [libbpf team](https://github.com/libbpf)
 - [xdp-tutorial](https://github.com/xdp-project/xdp-tutorial) by [XDP-project team](https://github.com/xdp-project)
