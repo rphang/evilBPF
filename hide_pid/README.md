@@ -27,8 +27,8 @@ To unhide everything, simply kill the program.
 
 This current implementation support:
 
-- [x] Hiding a multiple processes at once
-- [x] Hiding a directory / files
+- [x] Hiding multiple processes at once
+- [x] Hiding directories / files
 - [x] Dynamically adding / removing elements to hide at runtime
 
 ## Supported Kernels
