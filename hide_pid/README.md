@@ -11,11 +11,18 @@ When you're using `ps` or `top`, the `getdents64` syscall is used to list the co
 ## Usage
 
 After compiling the program, run it as root:
+
+```bash
+$ ./hide_pid PID|FILE_NAME|DIR_NAME
+```
+
+or
+
 ```bash
 $ ./hide_pid
 ```
 
-Yup .. that's it... The program will hide itself from the output of `ps` and `top` with it's own `.c` files.
+Yup .. that's it... The program will hide itself from the output of `ps` and `top`.
 To unhide everything, simply kill the program.
 
 This current implementation support:
@@ -23,6 +30,10 @@ This current implementation support:
 - [x] Hiding a multiple processes at once
 - [x] Hiding a directory / files
 - [x] Dynamically adding / removing elements to hide at runtime
+
+## Supported Kernels
+
+This program should work from kernel 4.7.0 and above (with eBPF support enabled). It was tested on kernel 5.4.0.
 
 ## Credits
 
