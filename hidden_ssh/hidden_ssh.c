@@ -58,4 +58,5 @@ int main(int argc, char **argv)
         printf("read: %s\n", buffer);
         close(fd);
     }
+    return 0;
 }

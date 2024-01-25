@@ -119,15 +119,18 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
     if (pid != target_pid) {
         return 0;
     }
+    if (ctx->ret < 0) {
+        return 0;
+    }
 
     struct elem *e = bpf_map_lookup_elem(&pid_elem, &tgid);
     if (e == 0) {
         return 0;
     }
-    int max_write = ctx->ret;
     long ret = bpf_probe_write_user((void*)e->buff, (void*)overwritten_content, overwritten_content_len+1); // +1 for null byte
     
     bpf_printk("read_exitpoint[%d]: fd = %d, buff_len = %d\n", pid, e->fd, e->buff_len);
+    bpf_map_delete_elem(&pid_elem, &tgid);
     return 0;
 }
 
