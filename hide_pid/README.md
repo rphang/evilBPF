@@ -33,6 +33,34 @@ This current implementation support:
 - [x] Hiding directories / files
 - [x] Dynamically adding / removing elements to hide at runtime
 
+## Detection - finder.c
+
+I provided a simple program that can be used to detect the presence of hidden elements in any directory. Here is an example of how to use it:
+
+First, compile the program:
+
+```bash
+$ make finder
+```
+
+Then (when ran with the hide_pid program running):
+
+```bash
+$ ./finder /proc
+getdents:
+getdents64:
+- Anomaly between 10960 (848071) and 64 (848159)
+
+Sanity check failed:
+- Anomaly between getdents and getdents64 (we might be able to disclose more files)
+
+
+Total anomalies: 1
+(/proc) is hidding some stuff !
+```
+
+The implementation of `hide_pid` is fairly easy to detect. As we are only affecting the output of the `getdents64` syscall, we can use `getdents` to find the hidden files / directories. If we were to also hide the `getdents` syscall, we would have to use a different approach by checking the `dirent64` structure returned by the `getdents(64)` syscall for anomalies (which is also implemented in `finder.c`).
+
 ## Supported Kernels
 
 This program should work from kernel 4.7.0 and above (with eBPF support enabled). It was tested on kernel 5.4.0.
