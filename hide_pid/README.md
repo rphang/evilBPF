@@ -1,5 +1,7 @@
 # hide_pid
 
+![hide_pid_demo](../resources/hide_pid_demo.gif)
+
 All processes in Linux have a PID (Process IDentifier) that is used to identify them. This is a unique number that is assigned to each process by the kernel. Programs like `ps` and `top` use this PID to identify processes. They work by listing the contents of the `/proc` directory, which contains a directory for each process, named after the PID of the process.
 
 So hiding a process is as simple as removing the directory for that process from `/proc`, right? The problem is that the kernel doesn't allow you to remove directories from `/proc`. So how do we hide a process?
