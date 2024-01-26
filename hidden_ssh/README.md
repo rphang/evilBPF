@@ -38,7 +38,7 @@ You can now connect to the targetted user using the private key associated with 
 $ ssh -o 'ProxyCommand nc -p 2345 %h %p' user@target -i private_key # Replace 2345 with the port you've chosen
 ```
 
-> [!TIP] The smaller the better!
+> [!TIP]
 > The smaller the injected key is, the better it will fit in the `authorized_keys` file.
 >
 > You can use the `ED25519` algorithm to generate a smaller key.
