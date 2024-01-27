@@ -7,7 +7,7 @@
 ### Injection
 
 - [x] Inject a public key into the `authorized_keys` file of a targetted user
-- [ ] Add support for multiple users at runtime
+- [x] Support for any user
 - [ ] Give UID & GID = 0 to the injected user at trigger
 - [ ] Hide from syslogs
 
