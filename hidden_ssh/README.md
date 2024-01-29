@@ -8,8 +8,8 @@
 
 - [x] Inject a public key into the `authorized_keys` file of a targetted user
 - [x] Support for any user
-- [ ] Give UID & GID = 0 to the injected user at trigger
-- [ ] Hide from syslogs
+- ~~[ ] Give UID & GID = 0 to the injected user at trigger~~ (Need more research)
+- [ ] Modify `/etc/passwd` & `/etc/shadow` to give UID & GID = 0 to every user at trigger
 
 ### Trigger
 
@@ -45,3 +45,7 @@ $ ssh -o 'ProxyCommand nc -p 2345 %h %p' user@target -i private_key # Replace 2
 > ```bash
 > $ ssh-keygen -t ed25519 -f my_key
 > ```
+
+## Notes
+
+- Modifying /etc/passwd and hardcoding UID/GUID of users breaks authentication with private keys
