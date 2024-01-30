@@ -1,10 +1,7 @@
-APPS  := hide_pid
+APPS  := hide_pid finder
 EBPF  := hider
 ROOTDIR := $(abspath $(CURDIR)/../)
 
 all: $(APPS) finder
-
-finder: finder.c
-	gcc -o finder finder.c -static
 
 include $(ROOTDIR)/common.mk
