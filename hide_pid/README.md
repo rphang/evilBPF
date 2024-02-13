@@ -61,6 +61,9 @@ Total anomalies: 1
 
 The implementation of `hide_pid` is fairly easy to detect. As we are only affecting the output of the `getdents64` syscall, we can use `getdents` to find the hidden files / directories. If we were to also hide the `getdents` syscall, we would have to use a different approach by checking the `dirent64` structure returned by the `getdents(64)` syscall for anomalies (which is also implemented in `finder.c`).
 
+>[!NOTE]
+> We can apply the same technique with symlink if malware/rootkit are filtering over the `/proc` or any other directories as they cannot resolve the symlink.
+
 ## Supported Kernels
 
 This program should work from kernel 4.7.0 and above (with eBPF support enabled). It was tested on kernel 5.4.0.
