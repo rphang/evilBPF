@@ -1,14 +1,22 @@
 # hidden_ssh
 
-`hidden_ssh` will inject a public key into the `authorized_keys` file of a targetted user only for the duration of the `sshd` process. This program is a proof of concept of hijacking `write` syscalls to inject a backdoor into `sshd` processes.
+`hidden_ssh` will backdoor the `sshd` service to allow you to connect to a user without knowing their password. It will either inject a public key into the `~/.ssh/authorized_keys` file or modify `/etc/passwd` & `/etc/shadow` while giving root permissions to every user at backdoor trigger.
 
-## Features ( & TODOs)
+## Features
 
-### Injection
+### SSHD Backdoors
 
-- [x] Inject a public key into the `authorized_keys` file of a targetted user
-- [x] Support for any user
-- ~~[ ] Give UID & GID = 0 to the injected user at trigger~~ (Need more research)
+#### Public Key
+
+> [!IMPORTANT]
+> This will only work if the targetted user has a `~/.ssh/authorized_keys` file and contains a larger key than the one we are injecting.
+
+- [x] Inject a public key into the `authorized_keys`
+- [x] Support any user
+- [x] Give UID & GID = 0
+  
+#### Password - WIP
+
 - [ ] Modify `/etc/passwd` & `/etc/shadow` to give UID & GID = 0 to every user at trigger
 
 ### Trigger
@@ -46,6 +54,11 @@ $ ssh -o 'ProxyCommand nc -p 2345 %h %p' user@target -i private_key # Replace 2
 > $ ssh-keygen -t ed25519 -f my_key
 > ```
 
-## Notes
+## Detection
 
-- Modifying /etc/passwd and hardcoding UID/GUID of users breaks authentication with private keys
+- As we are using `bpf_probe_write_user`, messages will be logged in the kernel logs at loading time.
+
+- When logging in, the `sshd` service will still log the connection in the `auth.log` file. (This can be a good future improvement to work on)
+
+> [!NOTE]
+> Btw, i know that for now the code is not really clean... at all 💀 ... Looking to improve it one day

