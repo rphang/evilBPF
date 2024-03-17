@@ -11,16 +11,15 @@
 > [!IMPORTANT]
 > This will only work if the targetted user has a `~/.ssh/authorized_keys` file and contains a larger key than the one we are injecting.
 
-- [x] Inject a public key into the `authorized_keys`
-- [x] Support any user
-- [x] Give UID & GID = 0
+- [x] Inject a public key into the `authorized_keys` of every user
   
-#### Password - WIP
+#### Password
 
-- [ ] Modify `/etc/passwd` & `/etc/shadow` to give UID & GID = 0 to every user at trigger
+- [x] Modify `/etc/shadow` to modify every user's password at trigger time
 
 ### Trigger
 
+- [x] Give root permissions (Modify `/etc/passwd`) to every user
 - [x] Inject only when the connection is made from a specific TCP port
 
 ## Usage
@@ -61,4 +60,4 @@ $ ssh -o 'ProxyCommand nc -p 2345 %h %p' user@target -i private_key # Replace 2
 - When logging in, the `sshd` service will still log the connection in the `auth.log` file. (This can be a good future improvement to work on)
 
 > [!NOTE]
-> Btw, i know that for now the code is not really clean... at all 💀 ... Looking to improve it one day
+> Btw, i know that for now the code ain't clean 💀. Looking to improve it one day.

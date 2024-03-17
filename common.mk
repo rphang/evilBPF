@@ -7,7 +7,7 @@ all: $(APPS)
 # Build application binary
 $(APPS): %: | $(EBPF).skel.h libbpf
 	$(call msg,BINARY,$@)
-	clang -Wall -O2 -g $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static
+	clang -Wall -O2 $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static
 	strip $@
 
 # eBPF skeleton

