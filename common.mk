@@ -8,6 +8,7 @@ all: $(APPS)
 $(APPS): %: | $(EBPF).skel.h libbpf
 	$(call msg,BINARY,$@)
 	clang -Wall -O2 -g $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static
+	strip $@
 
 # eBPF skeleton
 $(EBPF).skel.h: $(EBPF).bpf.o
