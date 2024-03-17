@@ -66,6 +66,7 @@ redifining the `xdp_md` struct in the application code. This is not ideal, but i
 
 - [2/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
 - [ ] Steal nginx passwd, authorization header, and cookie with openssl support (uprobes)
+- [ ] Shadow reading files (a kind of a kernel MITM sniffer)
 
 ## Resources
 
