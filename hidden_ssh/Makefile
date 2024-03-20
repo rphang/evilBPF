@@ -1,5 +1,5 @@
 APPS  := hidden_ssh
-EBPF  := hidder
+EBPF  := backdoor
 ROOTDIR := $(abspath $(CURDIR)/../)
 
 include $(ROOTDIR)/common.mk

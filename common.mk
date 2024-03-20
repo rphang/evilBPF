@@ -25,7 +25,7 @@ vmlinux.h:
 	$(call msg,VMH, $@)
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $@
 
-libbpf: | $(LIBBPF_PATH)/libbpf.a
+libbpf:
 	make -C $(LIBBPF_PATH)
 
 clean:
