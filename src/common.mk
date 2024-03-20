@@ -1,8 +1,16 @@
 ARCH 		?= $(shell uname -m)
-LIBBPF_PATH  = $(ROOTDIR)/lib/libbpf/src
+LIBBPF_PATH  = $(ROOTDIR)/../lib/libbpf/src
 LIBBPF_FLAGS = -I$(LIBBPF_PATH) -L$(LIBBPF_PATH) -l:libbpf.a
+RELEASE_DIR  = $(ROOTDIR)/../dst
 
 all: $(APPS)
+
+release_dest: $(APPS)
+	mkdir -p $(RELEASE_DIR)
+	cp $(APPS) $(RELEASE_DIR)
+
+release: release_dest
+	make clean
 
 # Build application binary
 $(APPS): %: | $(EBPF).skel.h libbpf
@@ -29,7 +37,7 @@ libbpf:
 	make -C $(LIBBPF_PATH)
 
 clean:
-	rm -f $(APPS) $(EBPF).bpf.o $(EBPF).skel.h vmlinux.h
+	rm -f $(APPS) $(EBPF).bpf.o $(EBPF).skel.h vmlinux.h $(EXTRA_APPS)
 
 xdpstatus:
 	watch -n 0.5 bpftool net

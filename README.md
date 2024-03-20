@@ -9,9 +9,9 @@ This repository contains a collection of eBPF / XDP programs that I've written w
 
 | Type | Name | Description | Notes |
 | ---- | ---- | ----------- | ----- |
-| XDP | [icmp_pingback](icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | multiple demo used to show the features offered by eBPF |
-| TP | [hide_pid](hide_pid) | Hide a process (pid)/folder/file from the system | Heavily inspired by [bad-bpf](https://github.com/pathtofile/bad-bpf) with some modifications |
-| TP | [hidden_ssh](hidden_ssh) | Add sneaky backdoor to SSH | W.I.P but Auth_key injection is there |
+| XDP | [icmp_pingback](src/icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | multiple demo used to show the features offered by eBPF |
+| TP | [hide_pid](src/hide_pid) | Hide a process (pid)/folder/file from the system | Heavily inspired by [bad-bpf](https://github.com/pathtofile/bad-bpf) with some modifications |
+| TP | [hidden_ssh](src/hidden_ssh) | Give yourself a hidden backdoor in the SSH server | |
 
 ## Requirements
 
@@ -43,28 +43,26 @@ git submodule update --init --recursive
 
 ### Compiling the programs
 
+#### All at once
+
+To compile all the programs at once, simply run the `Makefile` in the root directory:
+
+```bash
+make
+```
+
+All the compiled programs will be placed in the `dst` directory.
+
+#### Individually
 Each program has its own directory, and each directory has its own `Makefile`. To compile a program, simply `cd` into the program's directory and run `make`:
 
 ```bash
 cd <program>...
 make
 ```
+## Roadmap
 
-This will compile the program and generate the following files:
-- **`<program>`**: The application that loads the eBPF program.
-- **`<program>.bpf.o`**: The compiled eBPF program.
-- **`<program>.skel.h`**: The skeleton code for the eBPF program.
-- **`vmlinux.h`**: The kernel headers for the kernel version that you are running.
-
-## Known issues
-
-On my dev machine, my `vmlinux.h` file is generated without the `xdp_md` struct. I for now have no idea why this is the case, but I've found a workaround by simply
-redifining the `xdp_md` struct in the application code. This is not ideal, but it works for now. (You may need to remove it if you are not facing this issue)
-
-
-## Roadmap & Ideas
-
-- [2/x] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/) ?
+- [ ] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/)
 - [ ] Steal nginx passwd, authorization header, and cookie with openssl support (uprobes)
 - [ ] Shadow reading files (a kind of a kernel MITM sniffer)
 

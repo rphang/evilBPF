@@ -3,12 +3,15 @@
 #include <bpf/bpf_core_read.h>
 
 #define logprefix "hide_pid: "
-#define bpf_printk(fmt, ...)                            \
-({                                                      \
-        char ____fmt[] = logprefix fmt;                 \
-        bpf_trace_printk(____fmt, sizeof(____fmt),      \
-                         ##__VA_ARGS__);                \
-})
+#ifdef bpf_printk
+#undef bpf_printk
+#define bpf_printk(fmt, ...)                       \
+    ({                                             \
+        char ____fmt[] = logprefix fmt;            \
+        bpf_trace_printk(____fmt, sizeof(____fmt), \
+                         ##__VA_ARGS__);           \
+    })
+#endif
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);

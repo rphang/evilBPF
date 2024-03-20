@@ -9,7 +9,6 @@
 
 int simulated_size(struct dirent64 *dirp) {
     int size = 0;
-    int off = 0;
     size += sizeof(dirp->d_ino);
     size += sizeof(dirp->d_off);
     size += sizeof(dirp->d_reclen);
