@@ -1,0 +1,34 @@
+name: create-bin
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+            submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libelf-dev gcc-multilib linux-headers-$(uname -r) build-essential
+      - name: Setting up libbpf
+        run: |
+          make -C lib/libbpf/src
+          sudo make -C lib/libbpf/src install
+      - name: Compile
+        run: |
+          make
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: evilbpf-bin-${{ github.sha }}
+          path: |
+            dst
