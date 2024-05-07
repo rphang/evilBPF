@@ -61,7 +61,7 @@ done
 bptrace_start_args=$(echo $bptrace_start_args | sed 's/,$//')
 bptrace_end_args=$(echo $bptrace_end_args | sed 's/,$//')
 
-full_cmd="$bpftrace_cmd -e '$bptrace_start_args { @ctx[pid] = arg0; @buf[pid] = arg1; @len[pid] = arg2; } $bptrace_end_args { printf(\"[%d/%s] %s(%p, %p, %d) = %d\", pid, comm, probe, @ctx[pid], @buf[pid], @len[pid], retval); if ((int32)retval > 0) { @slen = retval; if (@slen >= 64) { printf(\" [[\n%s\n]] (truncated)\", str(@buf[pid], @slen)); } else { printf(\" [[\n%s\n]]\", str(@buf[pid], @slen)); } } printf(\"\n\"); delete(@ctx[pid]); delete(@buf[pid]); delete(@len[pid]); }'"
+full_cmd="$bpftrace_cmd -e '$bptrace_start_args { @ctx[pid] = arg0; @buf[pid] = arg1; @len[pid] = arg2; } $bptrace_end_args { printf(\"[%d/%s] %s(%p, %p, %d)\", pid, comm, probe, @ctx[pid], @buf[pid], @len[pid]); if ((int32)retval > 0) { @slen = retval; if (@slen >= 64) { printf(\" [[\n%s\n]] (truncated)\", str(@buf[pid], @slen)); } else { printf(\" [[\n%s\n]]\", str(@buf[pid], @slen)); } } printf(\"\n\"); delete(@ctx[pid]); delete(@buf[pid]); delete(@len[pid]); }'"
 
 # Running the bpftrace command
 eval $full_cmd
