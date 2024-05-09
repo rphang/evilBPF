@@ -53,7 +53,6 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
     return 0;
 }
 
-// Unused for now (some way for us to attach to a specific FD - might look into this or directly browsing the ngx_ssl_connection_t struct which is unreliable)
 SEC("uprobe/fd_attach_ssl")
 int probe_fd_attach_ssl(struct pt_regs *ctx)
 {
@@ -62,8 +61,13 @@ int probe_fd_attach_ssl(struct pt_regs *ctx)
 }
 
 SEC("uprobe/ssl_rw_enter")
-int BPF_UPROBE(probe_ssl_rw_enter, void *ssl, void *buf, int num)
+int probe_ssl_rw_enter(struct pt_regs *ctx)
 {
+    u64 buf = PT_REGS_PARM2_CORE(ctx);
+    if (!buf)
+        return 0;
+    
+    bpf_printk("ssl_rw_enter\n");
     int pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&ptr_ssl_rw_buff, &pid_tgid, &buf, 0);
     return 0;

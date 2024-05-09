@@ -12,10 +12,14 @@ release_dest: $(APPS)
 release: release_dest
 	make clean
 
+*.o: %.o: %.c
+	$(call msg,CC,$@)
+	clang -Wall -O2 -c $< -o $@
+
 # Build application binary
-$(APPS): %: | $(EBPF).skel.h libbpf
+$(APPS): %: | $(EBPF).skel.h libbpf $(OBJ)
 	$(call msg,BINARY,$@)
-	clang -Wall -O2 $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static
+	clang -Wall -O2 $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static $(OBJ)
 	strip $@
 
 # eBPF skeleton
@@ -37,7 +41,7 @@ libbpf:
 	make -C $(LIBBPF_PATH)
 
 clean:
-	rm -f $(APPS) $(EBPF).bpf.o $(EBPF).skel.h vmlinux.h $(EXTRA_APPS)
+	rm -f $(APPS) $(EBPF).bpf.o $(EBPF).skel.h vmlinux.h $(EXTRA_APPS) $(OBJ)
 
 xdpstatus:
 	watch -n 0.5 bpftool net

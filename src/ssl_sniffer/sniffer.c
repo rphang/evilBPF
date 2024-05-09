@@ -5,6 +5,7 @@
 #include <bpf/libbpf.h>
 
 #include "probe.skel.h"
+#include "include/libresolver.h"
 
 #define __ATTACH_UPROBE(program_path, arg_func_name, ebpf_fn, is_retprobe)                              \
     do                                                                                                  \
@@ -63,11 +64,21 @@ int main()
         return 1;
     }
 
-    // libssl
-    __ATTACH_UPROBE("/lib/x86_64-linux-gnu/libssl.so.1.1", "SSL_write", probe_ssl_rw_enter, false);
-    __ATTACH_UPROBE("/lib/x86_64-linux-gnu/libssl.so.1.1", "SSL_write", probe_ssl_write_return, true);
-    __ATTACH_UPROBE("/lib/x86_64-linux-gnu/libssl.so.1.1", "SSL_read", probe_ssl_rw_enter, false);
-    __ATTACH_UPROBE("/lib/x86_64-linux-gnu/libssl.so.1.1", "SSL_read", probe_ssl_read_return, true);
+    char found_path[MAX_PATH_LEN];
+    char library_name[] = "libssl.so";
+    if (global_search_library(library_name, found_path) == 0)
+    {
+        __ATTACH_UPROBE(found_path, "SSL_set_fd", probe_fd_attach_ssl, false);
+        __ATTACH_UPROBE(found_path, "SSL_write", probe_ssl_rw_enter, false);
+        __ATTACH_UPROBE(found_path, "SSL_write", probe_ssl_write_return, true);
+        __ATTACH_UPROBE(found_path, "SSL_read", probe_ssl_rw_enter, false);
+        __ATTACH_UPROBE(found_path, "SSL_read", probe_ssl_read_return, true);
+    }
+    else
+    {
+        printf("LibSSL not found\n");
+        return 1;
+    }
 
     while (true)
     {
