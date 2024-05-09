@@ -92,7 +92,10 @@ int lookup_path(const char *path, char *library_name, char *library_path, int de
             snprintf(new_path, MAX_PATH_LEN, "%s%s/", path, entry->d_name);
             int success = lookup_path(new_path, library_name, library_path, depth + 1);
             if (success == 0)
+            {
+                closedir(dir);
                 return 0;
+            }
         }
     }
     closedir(dir);
