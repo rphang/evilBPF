@@ -1,4 +1,4 @@
-ARCH 		?= $(shell uname -m)
+ARCH 		?= $(shell uname -m|sed 's/x86_64/x86/'|sed 's/aarch64/arm/')
 LIBBPF_PATH  = $(ROOTDIR)/../lib/libbpf/src
 LIBBPF_FLAGS = -I$(LIBBPF_PATH) -L$(LIBBPF_PATH) -l:libbpf.a
 RELEASE_DIR  = $(ROOTDIR)/../dst
