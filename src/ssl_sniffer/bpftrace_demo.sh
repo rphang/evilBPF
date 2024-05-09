@@ -32,7 +32,7 @@ fi
 printf "The program '$program' uses the following libraries:\n"
 echo "$libs"
 
-# Building the bpftrace command
+# Building the bpftrace command for reading and writing in a buffer
 
 for lib in $libs; do
     if [ $(echo $lib | grep -c "libssl") -gt 0 ]; then
@@ -57,11 +57,42 @@ for lib in $libs; do
     fi
 done
 
+# Special programs
+
+# If program name is "nginx", we need to trace itself with "ngx_ssl_write" and "ngx_ssl_recv" (it doesnt use any of the libraries above)
+if [ $(echo $program | grep -c "nginx") -gt 0 ]; then
+    echo "- Nginx detected"
+    bptrace_start_args="$bptrace_start_args uprobe:$real_path:ngx_ssl_write,"
+    bptrace_start_args="$bptrace_start_args uprobe:$real_path:ngx_ssl_recv,"
+    bptrace_end_args="$bptrace_end_args uretprobe:$real_path:ngx_ssl_write,"
+    bptrace_end_args="$bptrace_end_args uretprobe:$real_path:ngx_ssl_recv,"
+fi
+
 # Removing the trailing comma
 bptrace_start_args=$(echo $bptrace_start_args | sed 's/,$//')
 bptrace_end_args=$(echo $bptrace_end_args | sed 's/,$//')
 
-full_cmd="$bpftrace_cmd -e '$bptrace_start_args { @ctx[pid] = arg0; @buf[pid] = arg1; @len[pid] = arg2; } $bptrace_end_args { printf(\"[%d/%s] %s(%p, %p, %d)\", pid, comm, probe, @ctx[pid], @buf[pid], @len[pid]); if ((int32)retval > 0) { @slen = retval; if (@slen >= 64) { printf(\" [[\n%s\n]] (truncated)\", str(@buf[pid], @slen)); } else { printf(\" [[\n%s\n]]\", str(@buf[pid], @slen)); } } printf(\"\n\"); delete(@ctx[pid]); delete(@buf[pid]); delete(@len[pid]); }'"
+full_cmd="$bpftrace_cmd -e '$bptrace_start_args { 
+    @ctx[pid] = arg0;
+    @buf[pid] = arg1;
+    @len[pid] = arg2;
+} $bptrace_end_args { 
+    printf(\"[%d/%s] %s(%p, %p, %d)\", pid, comm, probe, @ctx[pid], @buf[pid], @len[pid]);
+    if ((int32)retval > 0) {
+        @slen = retval;
+        if (@slen >= 64) {
+            printf(\" [[\n%s\n]] (truncated)\", str(@buf[pid], @slen));
+        } 
+        else
+        {
+            printf(\" [[\n%s\n]]\", str(@buf[pid], @slen));
+        }
+    }
+    printf(\"\n\");
+    delete(@ctx[pid]);
+    delete(@buf[pid]);
+    delete(@len[pid]);
+}'"
 
 # Running the bpftrace command
 eval $full_cmd
@@ -70,7 +101,7 @@ exit 0
 
 # Some specific examples
 
-# Anyconnect Cisco (they use libacciscossl.so instead of native libssl)
+# Anyconnect Cisco (they use libacciscossl.so instead of system's libssl)
 bpftrace -e '
 uprobe:/opt/cisco/anyconnect/lib/libacciscossl.so:SSL_read,
 uprobe:/opt/cisco/anyconnect/lib/libacciscossl.so:SSL_write {
