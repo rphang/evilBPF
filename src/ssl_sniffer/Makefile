@@ -1,7 +1,7 @@
 APPS  := sniffer
-EBPF  := probe
+EBPF  := bpf/probe
 OBJ   := utils/libresolver.o
 ROOTDIR := $(abspath $(CURDIR)/../)
-CFLAGS := -Iinclude
+CFLAGS := -Iinclude -Ibpf
 
 include $(ROOTDIR)/common.mk

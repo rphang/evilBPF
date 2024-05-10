@@ -1,6 +1,6 @@
-# hide_pid
+# hider
 
-![hide_pid_demo](../../resources/hide_pid_demo.gif)
+![hider_demo](../../resources/hide_pid_demo.gif)
 
 All processes in Linux have a PID (Process IDentifier) that is used to identify them. This is a unique number that is assigned to each process by the kernel. Programs like `ps` and `top` use this PID to identify processes. They work by listing the contents of the `/proc` directory, which contains a directory for each process, named after the PID of the process.
 
@@ -15,13 +15,13 @@ When you're using `ps` or `top`, the `getdents64` syscall is used to list the co
 After compiling the program, run it as root:
 
 ```bash
-$ ./hide_pid PID|FILE_NAME|DIR_NAME
+$ ./hider PID|FILE_NAME|DIR_NAME
 ```
 
 or
 
 ```bash
-$ ./hide_pid
+$ ./hider
 ```
 
 Yup .. that's it... The program will hide itself from the output of `ps` and `top`.
@@ -43,7 +43,7 @@ First, compile the program:
 $ make finder
 ```
 
-Then (when ran with the hide_pid program running):
+Then (when ran with the `hider` program running):
 
 ```bash
 $ ./finder /proc
@@ -59,7 +59,7 @@ Total anomalies: 1
 (/proc) is hidding some stuff !
 ```
 
-The implementation of `hide_pid` is fairly easy to detect. As we are only affecting the output of the `getdents64` syscall, we can use `getdents` to find the hidden files / directories. If we were to also hide the `getdents` syscall, we would have to use a different approach by checking the `dirent64` structure returned by the `getdents(64)` syscall for anomalies (which is also implemented in `finder.c`).
+The implementation of `hider` is fairly easy to detect. As we are only affecting the output of the `getdents64` syscall, we can use `getdents` to find the hidden files / directories. If we were to also hide the `getdents` syscall, we would have to use a different approach by checking the `dirent64` structure returned by the `getdents(64)` syscall for anomalies (which is also implemented in `finder.c`).
 
 >[!NOTE]
 > We can apply the same technique with symlink if malware/rootkit are filtering over the `/proc` or any other directories as they cannot resolve the symlink.

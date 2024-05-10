@@ -9,8 +9,10 @@
 const char *COMMON_PATHS[] = {
     "/lib/",
     "/lib64/",
+    "/lib32/",
     "/usr/lib/",
-    "/usr/lib64/"
+    "/usr/lib64/",
+    "/usr/lib32/",
     "/usr/local/lib/",
 };
 
@@ -25,7 +27,7 @@ const char *COMMON_PATHS[] = {
 int global_search_library(char *library_name, char *library_path)
 {
     // Search for the library in the system (we'll look into common paths)
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 7; i++)
     {
         int success = lookup_path(COMMON_PATHS[i], library_name, library_path, 0);
         if (success == 0)

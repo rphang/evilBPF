@@ -17,17 +17,21 @@ release: release_dest
 	clang -Wall -O2 $(CFLAGS) -c $< -o $@
 
 # Build application binary
-$(APPS): %: | $(EBPF).skel.h libbpf $(OBJ)
+$(APPS): %: | $(APPS).skel.h libbpf $(OBJ)
 	$(call msg,BINARY,$@)
 	clang -Wall -O2 $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static $(OBJ) $(CFLAGS)
 	strip $@
 
 # eBPF skeleton
-$(EBPF).skel.h: $(EBPF).bpf.o
+$(APPS).skel.h: $(APPS).bpf.o
 	$(call msg,GEN-SKEL,$@)
 	bpftool gen skeleton $< > $@
 
-# build eBPF object file
+$(APPS).bpf.o: $(EBPF).bpf.o
+	$(call msg,BPF,$@)
+	bpftool gen object $@ $<
+
+# build each eBPF object file
 $(EBPF).bpf.o: $(EBPF).bpf.c vmlinux.h
 	$(call msg,BPF,$@)
 	clang -O2 -g -Wall -target bpf -D__KERNEL__ -D__TARGET_ARCH_$(ARCH) -I . $(INCLUDES) $(COMMON_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
@@ -41,7 +45,7 @@ libbpf:
 	make -C $(LIBBPF_PATH)
 
 clean:
-	rm -f $(APPS) $(EBPF).bpf.o $(EBPF).skel.h vmlinux.h $(EXTRA_APPS) $(OBJ)
+	rm -f $(APPS) $(EBPF).bpf.o $(EBPF).skel.h vmlinux.h $(EXTRA_APPS) $(OBJ) $(APPS).bpf.o $(APPS).skel.h
 
 xdpstatus:
 	watch -n 0.5 bpftool net
