@@ -1,6 +1,6 @@
 # Makefile for eBPF ICMP pingback program
 
-APPS  := icmp_pingback
+APPS  := icmp
 EBPF  := icmp
 ROOTDIR := $(abspath $(CURDIR)/../../)
 

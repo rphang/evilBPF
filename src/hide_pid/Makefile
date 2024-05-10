@@ -1,4 +1,4 @@
-APPS  := hide_pid
+APPS  := hider
 EXTRA_APPS := finder
 EBPF  := hider
 ROOTDIR := $(abspath $(CURDIR)/../)

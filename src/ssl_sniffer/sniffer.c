@@ -5,7 +5,7 @@
 #include <bpf/libbpf.h>
 
 #include "utils/libresolver.h"
-#include "probe.skel.h"
+#include "sniffer.skel.h"
 
 #define __ATTACH_UPROBE(program_path, arg_func_name, ebpf_fn, is_retprobe)                              \
     do                                                                                                  \
@@ -21,7 +21,7 @@
         }                                                                                               \
     } while (0)
 
-struct probe_bpf *skel;
+struct sniffer_bpf *skel;
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -30,7 +30,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 
 static void int_exit(int sig)
 {
-    probe_bpf__destroy(skel);
+    sniffer_bpf__destroy(skel);
     exit(0);
 }
 
@@ -38,14 +38,14 @@ int load_bpf()
 {
     int err;
     libbpf_set_print(libbpf_print_fn);
-    skel = probe_bpf__open();
+    skel = sniffer_bpf__open();
     if (!skel)
     {
         fprintf(stderr, "Failed to open BPF skeleton\n");
         return 1;
     }
 
-    err = probe_bpf__load(skel);
+    err = sniffer_bpf__load(skel);
     if (err)
     {
         fprintf(stderr, "Failed to load BPF skeleton\n");
@@ -66,19 +66,17 @@ int main()
 
     char found_path[MAX_PATH_LEN];
     char library_name[] = "libssl.so";
-    if (global_search_library(library_name, found_path) == 0)
+    if (global_search_library(library_name, found_path) != 0)
     {
-        __ATTACH_UPROBE(found_path, "SSL_set_fd", probe_fd_attach_ssl, false);
-        __ATTACH_UPROBE(found_path, "SSL_write", probe_ssl_rw_enter, false);
-        __ATTACH_UPROBE(found_path, "SSL_write", probe_ssl_write_return, true);
-        __ATTACH_UPROBE(found_path, "SSL_read", probe_ssl_rw_enter, false);
-        __ATTACH_UPROBE(found_path, "SSL_read", probe_ssl_read_return, true);
-    }
-    else
-    {
-        printf("LibSSL not found\n");
+        fprintf(stderr, "Failed to find library %s\n", library_name);
         return 1;
     }
+
+    __ATTACH_UPROBE(found_path, "SSL_set_fd", probe_fd_attach_ssl, false);
+    __ATTACH_UPROBE(found_path, "SSL_write", probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(found_path, "SSL_write", probe_ssl_write_return, true);
+    __ATTACH_UPROBE(found_path, "SSL_read", probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(found_path, "SSL_read", probe_ssl_read_return, true);
 
     while (true)
     {
