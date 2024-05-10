@@ -4,8 +4,8 @@
 #include <unistd.h>
 #include <bpf/libbpf.h>
 
+#include "utils/libresolver.h"
 #include "probe.skel.h"
-#include "include/libresolver.h"
 
 #define __ATTACH_UPROBE(program_path, arg_func_name, ebpf_fn, is_retprobe)                              \
     do                                                                                                  \
