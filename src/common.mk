@@ -12,14 +12,14 @@ release_dest: $(APPS)
 release: release_dest
 	make clean
 
-*.o: %.o: %.c
+%.o: %.c
 	$(call msg,CC,$@)
-	clang -Wall -O2 -c $< -o $@
+	clang -Wall -O2 $(CFLAGS) -c $< -o $@
 
 # Build application binary
 $(APPS): %: | $(EBPF).skel.h libbpf $(OBJ)
 	$(call msg,BINARY,$@)
-	clang -Wall -O2 $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static $(OBJ)
+	clang -Wall -O2 $@.c $(CFLAGS) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static $(OBJ) $(CFLAGS)
 	strip $@
 
 # eBPF skeleton

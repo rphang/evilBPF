@@ -4,7 +4,7 @@
 #include <dirent.h>
 #include <string.h>
 
-#include "../include/libresolver.h"
+#include "utils/libresolver.h"
 
 const char *COMMON_PATHS[] = {
     "/lib/",
