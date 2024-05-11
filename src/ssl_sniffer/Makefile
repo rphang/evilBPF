@@ -1,7 +1,7 @@
 APPS  := sniffer
-EBPF  := bpf/probe
-OBJ   := utils/libresolver.o
+EBPF  := ebpf/main
+OBJ   := ebpf/entry.o utils/libresolver.o
 ROOTDIR := $(abspath $(CURDIR)/../)
-CFLAGS := -Iinclude -Ibpf
+CFLAGS := -Iinclude -Iebpf
 
 include $(ROOTDIR)/common.mk
