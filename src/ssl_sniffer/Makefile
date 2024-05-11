@@ -1,6 +1,6 @@
 APPS  := sniffer
 EBPF  := ebpf/main
-OBJ   := ebpf/entry.o utils/libresolver.o
+OBJ   := ebpf/loader.o utils/libresolver.o
 ROOTDIR := $(abspath $(CURDIR)/../)
 CFLAGS := -Iinclude -Iebpf
 

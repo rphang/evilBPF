@@ -3,7 +3,7 @@
 #include <signal.h>
 #include <bpf/libbpf.h>
 
-#include "ebpf/entry.h"
+#include "ebpf/loader.h"
 #include "sniffer.skel.h"
 
 #define __ATTACH_UPROBE(program_path, arg_func_name, ebpf_fn, is_retprobe)                              \

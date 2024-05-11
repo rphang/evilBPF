@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "ebpf/entry.h"
+#include "ebpf/loader.h"
 #include "utils/libresolver.h"
 
 int main()

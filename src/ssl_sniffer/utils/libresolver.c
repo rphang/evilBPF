@@ -29,7 +29,7 @@ int global_search_library(char *library_name, char *library_path)
     // Search for the library in the system (we'll look into common paths)
     for (int i = 0; i < 7; i++)
     {
-        int success = lookup_path(COMMON_PATHS[i], library_name, library_path, 0);
+        int success = lookup_path(COMMON_PATHS[i], library_name, 0, library_path, 0);
         if (success == 0)
         {
             return 0;
@@ -54,14 +54,15 @@ int resolve_libraries(char *program_path, char *libraries[])
 /**
  * @brief Lookup for the library in the given path
  *
- * @param path The path to search for the library
- * @param library_name The name of the library to search for
+ * @param path The path to search for the library (e.g. /lib/)
+ * @param library_name The name of the library to search for (e.g. libssl.so)
+ * @param strict Flag to indicate if the search should be strict (i.e. the library name should match exactly or we look for versioned libraries)
  * @param library_path Buffer to store the path of the library
  * @param depth The depth of the search
  *
  * @return int 0 if the library is found, -1 otherwise
  */
-int lookup_path(const char *path, char *library_name, char *library_path, int depth)
+static int lookup_path(const char *path, char *library_name, int strict, char *library_path, int depth)
 {
     // Check if the depth is greater than the maximum depth
     if (depth > MAX_DEPTH)
@@ -75,7 +76,6 @@ int lookup_path(const char *path, char *library_name, char *library_path, int de
     char full_path[MAX_PATH_LEN];
     memset(full_path, 0, MAX_PATH_LEN);
     snprintf(full_path, MAX_PATH_LEN, "%s%s", path, library_name);
-
     // Check if the library exists
     if (access(full_path, F_OK) != -1)
     {
@@ -83,8 +83,8 @@ int lookup_path(const char *path, char *library_name, char *library_path, int de
         return 0;
     }
 
-    // Search for the library in the subdirectories
     DIR *dir = opendir(path);
+    // Search for the library in the subdirectories or the current directory if we are not strict
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL)
     {
@@ -96,10 +96,29 @@ int lookup_path(const char *path, char *library_name, char *library_path, int de
             }
             char new_path[MAX_PATH_LEN];
             snprintf(new_path, MAX_PATH_LEN, "%s%s/", path, entry->d_name);
-            int success = lookup_path(new_path, library_name, library_path, depth + 1);
+            int success = lookup_path(new_path, library_name, strict, library_path, depth + 1);
             if (success == 0)
             {
                 closedir(dir);
+                return 0;
+            }
+        }
+        if (!strict)
+        {
+            // Ignore if it's not a regular file or a symbolic link
+            if (entry->d_type != DT_REG && entry->d_type != DT_LNK)
+            {
+                continue;
+            }
+
+            // Checking if the entry name start with the library name
+            // Note: This is a naive approach, but for simplicity and my own sanity, I'm not going to think harder for now
+            if (strncmp(entry->d_name, library_name, strlen(library_name)) == 0)
+            {
+                char full_path[MAX_PATH_LEN];
+                memset(full_path, 0, MAX_PATH_LEN);
+                snprintf(full_path, MAX_PATH_LEN, "%s%s", path, entry->d_name);
+                memcpy(library_path, full_path, MAX_PATH_LEN);
                 return 0;
             }
         }
