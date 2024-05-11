@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/resource.h>
 #include <bpf/libbpf.h>
 
 #include "utils/libresolver.h"

@@ -47,7 +47,7 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
 
     // read the buffer
     char data[256];
-    bpf_probe_read(data, 256, (char *)*buf);
+    bpf_core_read(data, 256, (char *)*buf);
     bpf_printk("(%d) %s\n", resp, data);
     
     return 0;
