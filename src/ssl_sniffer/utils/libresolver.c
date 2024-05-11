@@ -67,6 +67,10 @@ int lookup_path(const char *path, char *library_name, char *library_path, int de
     if (depth > MAX_DEPTH)
         return -1;
 
+    // is folder exists
+    if (access(path, F_OK) == -1)
+        return -1;
+
     // Create the full path of the library
     char full_path[MAX_PATH_LEN];
     memset(full_path, 0, MAX_PATH_LEN);
