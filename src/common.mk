@@ -35,7 +35,7 @@ $(APPS).bpf.o: $(EBPF).bpf.o
 # build each eBPF object file
 $(EBPF).bpf.o: $(EBPF).bpf.c vmlinux.h
 	$(call msg,BPF,$@)
-	clang -O2 -g -Wall -target bpf -D__KERNEL__ -D__TARGET_ARCH_$(ARCH) -I . $(INCLUDES) $(COMMON_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	clang -O2 -g -Wall -target bpf -D__KERNEL__ -D__TARGET_ARCH_$(ARCH) $(CFLAGS) $(INCLUDES) $(COMMON_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	llvm-strip -g --strip-unneeded $@
 
 vmlinux.h:

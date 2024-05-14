@@ -7,7 +7,7 @@
 
 int main()
 {
-    if (bpf_load() != 0)
+    if (ssl_load() != 0)
     {
         return 1;
     }
@@ -20,11 +20,18 @@ int main()
         return 1;
     }
 
-    bpf_attach_openssl(found_path);
-
-    while (1)
+    if (ssl_attach_openssl(found_path) != 0)
     {
-        sleep(1);
+        fprintf(stderr, "Failed to attach openssl\n");
+        return 1;
+    }
+
+    printf("Press Ctrl+C to stop\n");
+
+    if (ssl_listen_event() != 0)
+    {
+        fprintf(stderr, "Failed to listen event\n");
+        return 1;
     }
 
     return 0;

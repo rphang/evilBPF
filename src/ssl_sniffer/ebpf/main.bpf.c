@@ -1,8 +1,14 @@
-#include "vmlinux.h"
+#ifndef __VMLINUX_H
+#define __VMLINUX_H
+#include <vmlinux.h>
+#endif
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
+
+#include "ebpf/struct_bpf.h"
+#include "ebpf/maps_bpf.h"
 
 #define logprefix "ssl_sniffer: "
 #ifdef bpf_printk
@@ -15,41 +21,54 @@
     })
 #endif
 
-// Internal maps (mostly for ptr tracking)
+#define min(x, y)                      \
+    ({                                 \
+        typeof(x) _min1 = (x);         \
+        typeof(y) _min2 = (y);         \
+        (void)(&_min1 == &_min2);      \
+        _min1 < _min2 ? _min1 : _min2; \
+    })
 
-// FD <-> SSL CTX (TODO: Look into this)
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u32);
-    __type(value, void *);
-    __uint(max_entries, 1024);
-} fd_to_ssl_ctx SEC(".maps");
-
-
+// Internal maps (mostly for ptr tracking, other maps are in headers)
 // Lookup maps
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u32); // pid_tgid
+    __type(key, u32);   // pid
     __type(value, u64); // buffer address
     __uint(max_entries, 1024);
 } ptr_ssl_rw_buff SEC(".maps");
 
 static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
 {
-    int pid_tgid = bpf_get_current_pid_tgid();
-    u64 *buf = bpf_map_lookup_elem(&ptr_ssl_rw_buff, &pid_tgid);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    u64 *buf = bpf_map_lookup_elem(&ptr_ssl_rw_buff, &pid);
     if (!buf)
         return 0;
-    
+
     int resp = PT_REGS_RC_CORE(ctx);
     if (resp <= 0)
         return 0;
+    u32 read_len = min((size_t)resp, (size_t)MAX_DATA_LEN);
 
-    // read the buffer
-    char data[256];
-    bpf_core_read(data, 256, (char *)*buf);
-    bpf_printk("(%d) %s\n", resp, data);
-    
+    // Prepare to send to user space (ring buffer)
+    int msg_len = sizeof(struct data_event);
+    struct data_event *msg = bpf_ringbuf_reserve(&rb, msg_len, 0);
+    if (!msg)
+        return 0;
+
+    u64 ts = bpf_ktime_get_ns();
+
+    bpf_core_read(&msg->pid, sizeof(msg->pid), &pid);
+    bpf_get_current_comm(&msg->comm, TASK_COMM_LEN);
+    bpf_core_read(&msg->ts, sizeof(msg->ts), &ts);
+    msg->op = is_write ? SSL_OP_WRITE : SSL_OP_READ;
+    msg->len = resp;
+    bpf_core_read_user(&msg->data, read_len, (void *)*buf);
+
+    // Sending to ring buffer
+    bpf_ringbuf_submit(msg, 0);
     return 0;
 }
 
@@ -66,24 +85,22 @@ int probe_ssl_rw_enter(struct pt_regs *ctx)
     u64 buf = PT_REGS_PARM2_CORE(ctx);
     if (!buf)
         return 0;
-    
-    bpf_printk("ssl_rw_enter\n");
-    int pid_tgid = bpf_get_current_pid_tgid();
-    bpf_map_update_elem(&ptr_ssl_rw_buff, &pid_tgid, &buf, 0);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    bpf_map_update_elem(&ptr_ssl_rw_buff, &pid, &buf, 0);
     return 0;
 }
 
 SEC("uprobe/ssl_read_return")
 int probe_ssl_read_return(struct pt_regs *ctx)
 {
-    bpf_printk("SSL Read:\n");
     return (handle_rw_exit(ctx, 0));
 }
 
 SEC("uprobe/ssl_write_return")
 int probe_ssl_write_return(struct pt_regs *ctx)
 {
-    bpf_printk("SSL Write:\n");
     return (handle_rw_exit(ctx, 1));
 }
 

@@ -26,6 +26,7 @@ const char *COMMON_PATHS[] = {
  */
 int global_search_library(char *library_name, char *library_path)
 {
+
     // Search for the library in the system (we'll look into common paths)
     for (int i = 0; i < 7; i++)
     {
@@ -48,6 +49,8 @@ int global_search_library(char *library_name, char *library_path)
  */
 int resolve_libraries(char *program_path, char *libraries[])
 {
+    // get ELF to get the list of libraries
+
     return -1;
 }
 
@@ -94,6 +97,28 @@ static int lookup_path(const char *path, char *library_name, int strict, char *l
             {
                 continue;
             }
+
+            // Checking system arch to avoid searching in wrong directories (might be a dumb approach)
+            if (strstr(entry->d_name, "linux") != NULL)
+            {
+                if (ARCH == 1 && strstr(entry->d_name, "x86_64") == 0)
+                {
+                    continue;
+                }
+                else if (ARCH == 2 && strstr(entry->d_name, "arm") == 0)
+                {
+                    continue;
+                }
+                else if (ARCH == 3 && strstr(entry->d_name, "i386") == 0)
+                {
+                    continue;
+                }
+                else if (ARCH == 4 && strstr(entry->d_name, "aarch64") == 0)
+                {
+                    continue;
+                }
+            }
+
             char new_path[MAX_PATH_LEN];
             snprintf(new_path, MAX_PATH_LEN, "%s%s/", path, entry->d_name);
             int success = lookup_path(new_path, library_name, strict, library_path, depth + 1);
