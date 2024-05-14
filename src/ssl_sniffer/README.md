@@ -7,7 +7,13 @@
 `ssl_sniffer` is a simple tool to sniff on-going SSL/TLS traffic on the machine without installing, trusting, or modifying any certificate. It will **intercept the SSL/TLS traffic** and **decrypt it** on the fly at the system SSL libraries level.
 
 > [!IMPORTANT]
-> Despite trying to sniff most of the SSL/TLS traffic, some applications might not be appearing in the traffic. This is because the application might be **using a different non supported SSL/TLS library**, **bringing their own library** in a directory which is not being sniffed or have **inbuilt SSL/TLS support**.
+> Despite trying to sniff most of the SSL/TLS traffic, some applications might not be appearing in the traffic. This is because the application might be **using a different non supported SSL/TLS library**, **bringing their own library** in a directory which is not being sniffed or have **inbuilt SSL/TLS support**. It would still be possible to hijack them if we know their paths and trying to guess func. by their DWARF info.
+>
+> The hardest case is when the statically compiled application is using **non-standard SSL/TLS libraries** and have **no DWARF info**. In this case, it's better to give up unless we know the functions locations.
+
+# Requirements
+
+- Kernel version >= 5.8 (could be lower but that requires to ditch ring buffer's and replace them with perf buffers)
 
 # Steps
 
