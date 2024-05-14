@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <bpf/libbpf.h>
 
 #include "ebpf/loader.h"
@@ -31,11 +30,17 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
     return vfprintf(stderr, format, args);
 }
 
-static void int_exit(int sig)
+/**
+ * @brief Unload and destroy the BPF program & poller
+ * 
+ * @return void
+ */
+void ssl_exit()
 {
+    if (!skel)
+        return;
     exiting = true;
     sniffer_bpf__destroy(skel);
-    exit(0);
 }
 
 /**
@@ -70,9 +75,6 @@ int ssl_load()
         fprintf(stderr, "Failed to load BPF skeleton\n");
         return 1;
     }
-
-    signal(SIGINT, int_exit);
-    signal(SIGTERM, int_exit);
     return 0;
 }
 
@@ -92,14 +94,49 @@ int ssl_attach_openssl(char *program_path)
     return 0;
 }
 
+/**
+ * @brief Attach the GnuTLS probes to the specified library/program path
+ *
+ * @param program_path the path to the program/library to attach the probes to
+ * @return int 0 if the probes are attached successfully, 1 otherwise
+ */
+int ssl_attach_gnutls(char *program_path)
+{
+    __ATTACH_UPROBE(program_path, "gnutls_record_send", probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "gnutls_record_send", probe_ssl_write_return, true);
+    __ATTACH_UPROBE(program_path, "gnutls_record_recv", probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "gnutls_record_recv", probe_ssl_read_return, true);
+    return 0;
+}
+
+/**
+ * @brief Attach the NSS probes to the specified library/program path
+ *
+ * @param program_path the path to the program/library to attach the probes to
+ * @return int 0 if the probes are attached successfully, 1 otherwise
+ */
+int ssl_attach_nss(char *program_path)
+{
+    __ATTACH_UPROBE(program_path, "PR_Write" , probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "PR_Write" , probe_ssl_write_return, true);
+    __ATTACH_UPROBE(program_path, "PR_Read" , probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "PR_Read" , probe_ssl_read_return, true);
+    __ATTACH_UPROBE(program_path, "PR_Send" , probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "PR_Send" , probe_ssl_write_return, true);
+    __ATTACH_UPROBE(program_path, "PR_Recv" , probe_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "PR_Recv" , probe_ssl_read_return, true);
+    return 0;
+}
+
 static void log_event(struct data_event *event)
 {
     char *op = event->op == 1 ? "SSL_OP_READ" : "SSL_OP_WRITE";
-    printf("program: %s(%d), ts: %llu, op: %s, len: %d --> \n", event->comm, event->pid, event->ts, op, event->len);
+    fprintf(stdout, "[+] %s(%d), ts: %llu, op: %s, len: %d --> \n", event->comm, event->pid, event->ts, op, event->len);
     for (int i = 0; i < event->len; i++)
     {
-        printf("%c", event->data[i]);
+        fprintf(stdout, "%c", event->data[i]);
     }
+    fprintf(stdout, "\n");
 }
 
 static int handle_event(void *ctx, void *data, size_t len)
@@ -137,7 +174,7 @@ int ssl_listen_event()
         }
         if (err < 0)
         {
-            printf("Error polling ring buffer: %d\n", err);
+            fprintf(stderr, "Error polling ring buffer: %d\n", err);
             break;
         }
     }

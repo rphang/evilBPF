@@ -50,6 +50,8 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
     int resp = PT_REGS_RC_CORE(ctx);
     if (resp <= 0)
         return 0;
+    if (resp > MAX_DATA_LEN)
+        bpf_printk("we might lose some data (%d), need some recursive read\n", resp);
     u32 read_len = min((size_t)resp, (size_t)MAX_DATA_LEN);
 
     // Prepare to send to user space (ring buffer)
@@ -65,8 +67,12 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
     bpf_core_read(&msg->ts, sizeof(msg->ts), &ts);
     msg->op = is_write ? SSL_OP_WRITE : SSL_OP_READ;
     msg->len = resp;
-    bpf_core_read_user(&msg->data, read_len, (void *)*buf);
 
+    //if (!is_write)
+    //    bpf_probe_write_user((void *)*buf, "HTTP/1.1 200 OK\nContent-Length: 12\n\nHello World\n\00", 50);
+    // We can fake the data being sent back to user space but difference in read size will be detected
+
+    bpf_core_read_user(&msg->data, read_len, (void *)*buf);
     // Sending to ring buffer
     bpf_ringbuf_submit(msg, 0);
     return 0;
