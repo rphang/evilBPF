@@ -3,29 +3,45 @@ _an eBPF / XDP Playground_
 
 This repository contains a collection of eBPF / XDP programs that I've written while learning about eBPF and XDP. As security is my primary interest, most of these programs are security-related and are intended to be used for security research.
 
+![hider_demo](.github/resources/hide_pid_demo.gif)
+*Hide your files and processes from the system*
+
+![ssl_demo](.github/resources/ssl_sniffer_demo.gif)
+*Sniff unencrypted SSL/TLS traffic*
+
+> [!WARNING]
 > **Disclaimer:** I condemn the use of these programs for malicious purposes. I am not responsible for any damage caused by the use of these programs. These programs are intended for educational purposes only.
 
-## Programs
+## Programs List
 
 | Type | Name | Description | Notes |
 | ---- | ---- | ----------- | ----- |
-| XDP | [icmp_pingback](src/icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | multiple demo used to show the features offered by eBPF |
-| TP | [hide_pid](src/hide_pid) | Hide a process (pid)/folder/file from the system | Heavily inspired by [bad-bpf](https://github.com/pathtofile/bad-bpf) with some modifications |
+| XDP | [icmp_pingback](src/icmp_pingback) | Respond to ICMP echo requests with ICMP echo replies within the XDP layer. | Showcase of XDP program |
+| TP | [hide_pid](src/hide_pid) | Hide a process (pid)/folder/file from the system | Inspired by [bad-bpf](https://github.com/pathtofile/bad-bpf) |
 | TP | [hidden_ssh](src/hidden_ssh) | Give yourself a hidden backdoor in the SSH server | |
+| UPROBE | [ssl_sniffer](src/ssl_sniffer) | Sniff unencrypted SSL/TLS traffic | |
 
 ## Requirements
 
 For compiling eBPF programs, you'll need the following:
 
 - Debian, Ubuntu, or other Debian-based Linux distribution
+- Linux Kernel 5.8.0 or later
+- `clang` and `llvm` (>= 10.0.0)
 
 ```bash
-sudo apt install clang llvm libelf-dev gcc-multilib linux-headers-$(uname -r) build-essential
+sudo apt install clang llvm libelf-dev linux-headers-$(uname -r) build-essential
 ```
 
-Make sure that the version of `clang` and `llvm` installed is `>= 10.0.0`.
 
 ## Installation
+
+### From releases
+
+You can download the latest release from the [releases page](https://github.com/rphang/evilBPF/releases).
+
+> [!NOTE]
+> Some programs might not give enough control over the eBPF program, if you need to modify the eBPF program, you'll need to compile the source code. (Or open an issue requesting the feature)
 
 ### Getting the source code
 
@@ -57,14 +73,9 @@ All the compiled programs will be placed in the `dst` directory.
 Each program has its own directory, and each directory has its own `Makefile`. To compile a program, simply `cd` into the program's directory and run `make`:
 
 ```bash
-cd <program>...
+cd src/<program>...
 make
 ```
-## Roadmap
-
-- [ ] Compatible with [bpf CO-RE](https://nakryiko.com/posts/bpf-core-reference-guide/)
-- [ ] Steal nginx passwd, authorization header, and cookie with openssl support (uprobes)
-- [ ] Shadow reading files (a kind of a kernel MITM sniffer)
 
 ## Resources
 

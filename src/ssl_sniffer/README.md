@@ -2,7 +2,7 @@
 
 `ssl_sniffer` is a simple tool to sniff on-going SSL/TLS traffic on the machine without installing, trusting, or modifying any certificate. It will **intercept the raw decrypted SSL/TLS traffic**, and display it on the fly.
 
-![ssl_demo](../../resources/ssl_sniffer_demo.gif)
+![ssl_demo](../../.github/resources/ssl_sniffer_demo.gif)
 
 ## Features
 
