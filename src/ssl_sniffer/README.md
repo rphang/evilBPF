@@ -66,3 +66,10 @@ Tested on:
 ## Extra
 
 A `bpftrace_demo.sh` script is provided to try to sniff any encrypted SSL/TLS traffic on specified programs. It will use `bpftrace` to compile and load the eBPF program. It's a simplier version of the `ssl_sniffer` tool with truncated output.
+
+## Technical Details
+
+As we don't really know how big the SSL/TLS traffic is, going for size defined structures is not a good idea as we may either waste space for small packets or truncate big packets. To avoid this, `ssl_sniffer` uses a ring buffer and transfers the data from the kernel to the user space through chunks of constant size. These chunks are then reassembled in the user space to get the full packet (TODO).
+
+> [!NOTE]
+> This is an implementation of [Google's Chunking Trick](https://lpc.events/event/11/contributions/938/attachments/909/1788/BPF_Security_Google.pdf) at the [Linux Plumbers Conference 2021](https://lpc.events/2021/).

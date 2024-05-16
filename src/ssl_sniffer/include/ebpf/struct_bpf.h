@@ -1,8 +1,7 @@
 #ifndef __STRUCTS_BPF_H
 #define __STRUCTS_BPF_H
 
-#define TASK_COMM_LEN 16
-#define MAX_DATA_LEN 16536
+#include "definition.h"
 
 typedef enum {
     SSL_OP_WRITE = 0,
@@ -10,17 +9,19 @@ typedef enum {
 } ssl_op_t;
 
 /**
- * @brief Struct for passing data from kernel to user space, for each write/recv SSL operation
+ * @brief Chunk struct for passing data from kernel to user space, for each write/recv SSL operation.
  * 
  * @param pid Process ID
- * @param tgid Thread Group ID
  * @param ts Timestamp
+ * @param comm Command name
  * @param op Operation type
  * @param len Length of data
  * @param data Data
 */
 struct data_event {
     __u32 pid;
+    __u64 key;
+    int part;
     __u64 ts;
     char comm[TASK_COMM_LEN];
     ssl_op_t op;

@@ -29,52 +29,122 @@
         _min1 < _min2 ? _min1 : _min2; \
     })
 
-// Internal maps (mostly for ptr tracking, other maps are in headers)
+// Chunk processing storage map
+struct chunk_processing
+{
+    int loop_count;
+    u32 pid;
+    u64 ts;
+    ssl_op_t op;
+    char comm[TASK_COMM_LEN];
+    size_t len_left;
+    u64 buffer;
+    u64 offset;
+};
+
+struct
+{
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, struct chunk_processing);
+    __uint(max_entries, 1024);
+} chunk_processing_map SEC(".maps");
+
 // Lookup maps
 struct
 {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u32);   // pid
+    __type(key, u64);
     __type(value, u64); // buffer address
     __uint(max_entries, 1024);
 } ptr_ssl_rw_buff SEC(".maps");
+
+SEC("uprobe")
+int recursive_chunks(struct pt_regs *ctx)
+{
+    u64 key = bpf_get_current_pid_tgid(); // PID + SMP processor ID (that should be unique enough)
+    key = (key << 32) | bpf_get_smp_processor_id();
+    struct chunk_processing *cp = bpf_map_lookup_elem(&chunk_processing_map, &key);
+    if (!cp)
+        return 0;
+
+    // do we hit limits of tail calls?
+    if (cp->loop_count > 30)
+    {
+        bpf_printk("recursive_chunks: Hit tail call limit\n");
+        bpf_map_delete_elem(&chunk_processing_map, &key);
+        return 0;
+    }
+
+    // Reserve rb
+    struct data_event *event = bpf_ringbuf_reserve(&rb, sizeof(struct data_event), 0);
+    if (!event)
+    {
+        bpf_printk("recursive_chunks: Failed to reserve ringbuf\n");
+        bpf_map_delete_elem(&chunk_processing_map, &key);
+        return 0;
+    }
+    // Read the chunk
+    size_t len = min((size_t)cp->len_left, (size_t)MAX_DATA_LEN);
+    bpf_probe_read_user(&event->data, len, (void *)(cp->buffer + cp->offset));
+
+    // Copy data
+    event->key = key;
+    event->part = cp->loop_count;
+    event->pid = cp->pid;
+    event->ts = cp->ts;
+    event->op = cp->op;
+    event->len = len;
+    bpf_probe_read_user(&event->comm, sizeof(event->comm), cp->comm);
+
+    // Update the chunk processing struct
+    cp->loop_count++;
+    cp->len_left -= len;
+    cp->offset += len;
+
+    // Submit the event
+    bpf_ringbuf_submit(event, 0);
+
+    if (cp->len_left != 0)
+    {
+        bpf_tail_call(ctx, &tailcall_map, REC_CHUNK_RB_PROG);
+    }
+    else
+    {
+        bpf_map_delete_elem(&chunk_processing_map, &key);
+    }
+    return 0;
+}
 
 static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
 {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-    u64 *buf = bpf_map_lookup_elem(&ptr_ssl_rw_buff, &pid);
+    u64 *buf = bpf_map_lookup_elem(&ptr_ssl_rw_buff, &pid_tgid);
     if (!buf)
         return 0;
 
     int resp = PT_REGS_RC_CORE(ctx);
     if (resp <= 0)
         return 0;
-    if (resp > MAX_DATA_LEN)
-        bpf_printk("we might lose some data (%d), need some recursive read\n", resp);
-    u32 read_len = min((size_t)resp, (size_t)MAX_DATA_LEN);
 
-    // Prepare to send to user space (ring buffer)
-    int msg_len = sizeof(struct data_event);
-    struct data_event *msg = bpf_ringbuf_reserve(&rb, msg_len, 0);
-    if (!msg)
-        return 0;
+    // Create the chunk processing struct
+    struct chunk_processing cp = {0};
+    cp.loop_count = 0;
+    cp.pid = pid;
+    cp.ts = bpf_ktime_get_ns();
+    cp.op = is_write ? SSL_OP_WRITE : SSL_OP_READ;
+    cp.len_left = resp;
+    cp.buffer = *buf;
+    cp.offset = 0;
+    bpf_get_current_comm(&cp.comm, sizeof(cp.comm));
 
-    u64 ts = bpf_ktime_get_ns();
+    // Store the chunk processing struct
+    u64 key = bpf_get_current_pid_tgid(); // PID + SMP processor ID
+    key = (key << 32) | bpf_get_smp_processor_id();
+    bpf_map_update_elem(&chunk_processing_map, &key, &cp, 0);
 
-    bpf_core_read(&msg->pid, sizeof(msg->pid), &pid);
-    bpf_get_current_comm(&msg->comm, TASK_COMM_LEN);
-    bpf_core_read(&msg->ts, sizeof(msg->ts), &ts);
-    msg->op = is_write ? SSL_OP_WRITE : SSL_OP_READ;
-    msg->len = resp;
-
-    //if (!is_write)
-    //    bpf_probe_write_user((void *)*buf, "HTTP/1.1 200 OK\nContent-Length: 12\n\nHello World\n\00", 50);
-    // We can fake the data being sent back to user space but difference in read size will be detected
-
-    bpf_core_read_user(&msg->data, read_len, (void *)*buf);
-    // Sending to ring buffer
-    bpf_ringbuf_submit(msg, 0);
+    bpf_tail_call(ctx, &tailcall_map, REC_CHUNK_RB_PROG);
     return 0;
 }
 
@@ -93,8 +163,7 @@ int probe_ssl_rw_enter(struct pt_regs *ctx)
         return 0;
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = pid_tgid >> 32;
-    bpf_map_update_elem(&ptr_ssl_rw_buff, &pid, &buf, 0);
+    bpf_map_update_elem(&ptr_ssl_rw_buff, &pid_tgid, &buf, 0);
     return 0;
 }
 

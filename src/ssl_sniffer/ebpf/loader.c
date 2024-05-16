@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <bpf/libbpf.h>
+#include <bpf/bpf.h>
 
 #include "ebpf/loader.h"
 #include "ebpf/struct_bpf.h"
@@ -75,6 +76,16 @@ int ssl_load()
         fprintf(stderr, "Failed to load BPF skeleton\n");
         return 1;
     }
+
+    int map_prog_array_fd = bpf_map__fd(skel->maps.tailcall_map);
+    int prog_fd = bpf_program__fd(skel->progs.recursive_chunks);
+    int index = REC_CHUNK_RB_PROG;
+    err = bpf_map_update_elem(map_prog_array_fd, &index, &prog_fd, BPF_ANY);
+    if (err)
+    {
+        fprintf(stderr, "Failed to update tailcall map: %d\n", err);
+        return 1;
+    }
     return 0;
 }
 
@@ -131,7 +142,8 @@ int ssl_attach_nss(char *program_path)
 static void log_event(struct data_event *event)
 {
     char *op = event->op == 1 ? "SSL_OP_READ" : "SSL_OP_WRITE";
-    fprintf(stdout, "[+] %s(%d), ts: %llu, op: %s, len: %d --> \n", event->comm, event->pid, event->ts, op, event->len);
+    fprintf(stdout, "--------------------------------------------------\n");
+    fprintf(stdout, "[+|%llu-%d] %s(%d), ts: %llu, op: %s, len: %d,  --> \n", event->key, event->part, event->comm, event->pid, event->ts, op, event->len);
     for (int i = 0; i < event->len; i++)
     {
         fprintf(stdout, "%c", event->data[i]);

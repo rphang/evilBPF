@@ -7,8 +7,7 @@
 #define __MAPS_BPF_H
 
 #include <bpf/bpf_helpers.h>
-
-#define BUFFER_ENTRY_SIZE 256*1024
+#include "definition.h"
 
 /*
     This implementation uses BPF_MAP_TYPE_RINGBUF to store the data events.
@@ -24,6 +23,15 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, BUFFER_ENTRY_SIZE);
 } rb SEC(".maps");
+
+// Tailcall map
+struct
+{
+    __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
+    __uint(max_entries, 2);
+    __type(key, __u32);
+    __type(value, __u32); // Hold our BPF programs for the tailcalls
+} tailcall_map SEC(".maps");
 
 // Lookup maps
 // FD <-> SSL CTX (TODO: Look into this)
