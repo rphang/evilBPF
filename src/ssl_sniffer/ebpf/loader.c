@@ -102,6 +102,10 @@ int ssl_attach_openssl(char *program_path)
     __ATTACH_UPROBE(program_path, "SSL_write", probe_ssl_write_return, true);
     __ATTACH_UPROBE(program_path, "SSL_read", probe_ssl_rw_enter, false);
     __ATTACH_UPROBE(program_path, "SSL_read", probe_ssl_read_return, true);
+    __ATTACH_UPROBE(program_path, "SSL_read_ex", probe_ex_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "SSL_read_ex", probe_ssl_read_return, true);
+    __ATTACH_UPROBE(program_path, "SSL_write_ex", probe_ex_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "SSL_write_ex", probe_ssl_write_return, true);
     return 0;
 }
 
@@ -139,7 +143,7 @@ int ssl_attach_nss(char *program_path)
     return 0;
 }
 
-static void log_event(struct data_event *event)
+static void log_event(struct chunk_event *event)
 {
     char *op = event->op == 1 ? "SSL_OP_READ" : "SSL_OP_WRITE";
     fprintf(stdout, "--------------------------------------------------\n");
@@ -153,7 +157,7 @@ static void log_event(struct data_event *event)
 
 static int handle_event(void *ctx, void *data, size_t len)
 {
-    struct data_event *event = (struct data_event *)data;
+    struct chunk_event *event = (struct chunk_event *)data;
     log_event(event);
     return 0;
 }

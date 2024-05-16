@@ -12,7 +12,7 @@
  * Chunk map
  */
 
-#define BUFFER_ENTRY_SIZE 256*1024*6
+#define BUFFER_ENTRY_SIZE 256*1024*2
 
 /*
  * Tailcalls

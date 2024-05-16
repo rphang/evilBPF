@@ -18,10 +18,10 @@ typedef enum {
  * @param len Length of data
  * @param data Data
 */
-struct data_event {
-    __u32 pid;
+struct chunk_event {
     __u64 key;
     int part;
+    __u32 pid;
     __u64 ts;
     char comm[TASK_COMM_LEN];
     ssl_op_t op;
