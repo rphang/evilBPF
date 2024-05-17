@@ -6,7 +6,7 @@ RELEASE_DIR  = $(ROOTDIR)/../dst
 
 all: vmlinux.h $(APPS)
 
-release_dest: $(APPS)
+release_dest: vmlinux.h $(APPS)
 	mkdir -p $(RELEASE_DIR)
 	cp $(APPS) $(RELEASE_DIR)
 
