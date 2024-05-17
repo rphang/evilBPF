@@ -9,6 +9,8 @@
 - ✅ Sniff many SSL/TLS libraries (OpenSSL, GnuTLS, NSS)
 - ✅ On-the-fly SSL/TLS traffic sniffing (no need to install certificates & restart the application)
 - ✅ Bypass SSL Pinning
+- ✅ Support for both client and server side
+- ✅ Identify the process and Src/Dst IP/Port
 - 🚧 [**Planned**] protocol parsing (HTTP2+)
 
 It supports out-of-the-box the following applications:

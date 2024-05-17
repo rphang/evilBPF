@@ -33,13 +33,4 @@ struct
     __type(value, __u32); // Hold our BPF programs for the tailcalls
 } tailcall_map SEC(".maps");
 
-// Lookup maps
-// FD <-> SSL CTX (TODO: Look into this)
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u32);
-    __type(value, void *);
-    __uint(max_entries, 1024);
-} fd_to_ssl_ctx SEC(".maps");
-
 #endif

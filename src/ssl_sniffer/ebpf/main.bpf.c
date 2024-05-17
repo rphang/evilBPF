@@ -7,8 +7,10 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 
-#include "ebpf/struct_bpf.h"
+#include "ebpf/chunks.h"
+#include "ebpf/ssl.h"
 #include "ebpf/maps_bpf.h"
+#include "ebpf/fd.h"
 
 #define logprefix "ssl_sniffer: "
 #ifdef bpf_printk
@@ -55,6 +57,7 @@ struct rw_event
 {
     u64 buff;
     u64 len;
+    void *SSL_PTR;
 };
 
 struct
@@ -64,6 +67,65 @@ struct
     __type(value, struct rw_event);
     __uint(max_entries, 1024);
 } ptr_ssl_rw_buff SEC(".maps");
+
+/*
+ * Kernel tracing for FDs
+ */
+
+SEC("tp/syscalls/sys_enter_connect")
+int connect_entrypoint(struct trace_event_raw_sys_enter *ctx)
+{
+    u64 pidtgid = bpf_get_current_pid_tgid();
+    u64 key = pidtgid << 32 | ctx->args[0];
+    int sockfd = ctx->args[0];
+    if (sockfd != SOCK_DGRAM && sockfd != SOCK_STREAM && sockfd != SOCK_SEQPACKET && sockfd != SOCK_RAW && sockfd != SOCK_RDM && sockfd != SOCK_PACKET)
+    {
+        return 0;
+    }
+
+    struct sockaddr sa = {};
+    bpf_core_read_user(&sa, sizeof(sa), (void *)ctx->args[1]);
+
+    if (sa.sa_family != AF_INET && sa.sa_family != AF_INET6)
+    {
+        // Only interested in IPv4 and IPv6 (not UNIX sockets yet)
+        return 0;
+    }
+    struct connect_event event = {0};
+    event.ts = bpf_ktime_get_ns();
+    event.pidtgid = key;
+    event.con_type = sockfd;
+    event.family = sa.sa_family;
+
+    unsigned short int port = 0;
+    if (sa.sa_family == AF_INET)
+    {
+        struct sockaddr_in sa4 = {};
+        bpf_core_read_user(&sa4, sizeof(sa4), (void *)ctx->args[1]);
+        unsigned char *dst = (unsigned char *)&sa4.sin_addr.s_addr;
+        port = bpf_ntohs(sa4.sin_port);
+        event.port = port;
+        for (int i = 0; i < 4; i++)
+        {
+            event.dst_ipv4[i] = dst[i];
+        }
+    }
+    else if (sa.sa_family == AF_INET6)
+    {
+        struct sockaddr_in6 sa6 = {};
+        bpf_core_read_user(&sa6, sizeof(sa6), (void *)ctx->args[1]);
+        unsigned short int *dst = (unsigned short int *)(&sa6.sin6_addr);
+        port = bpf_ntohs(sa6.sin6_port);
+        event.port = port;
+        for (int i = 0; i < 8; i++)
+        {
+            event.dst_ipv6[i] = dst[i];
+        }
+    }
+
+    bpf_map_update_elem(&connect_events_maps, &key, &event, 0);
+    return 0;
+}
 
 SEC("uprobe")
 int recursive_chunks(struct pt_regs *ctx)
@@ -95,7 +157,7 @@ int recursive_chunks(struct pt_regs *ctx)
     event->ts = cp->ts;
     event->op = cp->op;
     event->len = len;
-    bpf_probe_read_user(&event->comm, sizeof(event->comm), cp->comm);
+    bpf_probe_read_kernel_str(&event->comm, sizeof(event->comm), &cp->comm);
 
     // Update the chunk processing struct
     cp->loop_count++;
@@ -146,6 +208,30 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
         len_struct = resp;
     }
 
+    // We got everything except the fd
+    int *fd = bpf_map_lookup_elem(&ssl_to_fd, &event->SSL_PTR);
+    if (fd)
+    {
+        u64 connect_key = pid_tgid << 32 | *fd;
+        struct connect_event *connect_event = bpf_map_lookup_elem(&connect_events_maps, &connect_key);
+        if (connect_event)
+        {
+            bpf_printk("handle_rw_exit: (Outgoing) Found connect event\n");
+            if (connect_event->family == AF_INET)
+            {
+                bpf_printk("IP: %d.%d.%d.X\n", connect_event->dst_ipv4[0], connect_event->dst_ipv4[1], connect_event->dst_ipv4[2]);
+            }
+            else if (connect_event->family == AF_INET6)
+            {
+                bpf_printk("IP: %x:%x:%x:...\n", bpf_ntohs(connect_event->dst_ipv6[0]), bpf_ntohs(connect_event->dst_ipv6[1]), bpf_ntohs(connect_event->dst_ipv6[2]));
+            }
+            bpf_printk("Port: %d", connect_event->port);
+        }
+        // clean
+        bpf_map_delete_elem(&ssl_to_fd, &event->SSL_PTR);
+        bpf_map_delete_elem(&connect_events_maps, &connect_key);
+    }
+
     u64 *buf = &event->buff;
     // Create the chunk processing struct
     struct chunk_processing cp = {0};
@@ -167,52 +253,64 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
     return 0;
 }
 
-SEC("uprobe/ssl_rw_enter")
+SEC("uprobe")
 int probe_ssl_rw_enter(struct pt_regs *ctx)
 {
+    u64 SSL_ST = PT_REGS_PARM1_CORE(ctx);
     u64 buf = PT_REGS_PARM2_CORE(ctx);
-    if (!buf)
+    if (!buf || !SSL_ST)
         return 0;
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct rw_event rw = {0};
     rw.buff = buf;
+    rw.SSL_PTR = (void *)SSL_ST;
     bpf_map_update_elem(&ptr_ssl_rw_buff, &pid_tgid, &rw, 0);
     return 0;
 }
 
-SEC("uprobe/ex_ssl_rw_enter")
+SEC("uprobe")
 int probe_ex_ssl_rw_enter(struct pt_regs *ctx)
 {
+    u64 SSL_ST = PT_REGS_PARM1_CORE(ctx);
     u64 buf = PT_REGS_PARM2_CORE(ctx);
     u64 len = PT_REGS_PARM4_CORE(ctx);
-    if (!buf || !len)
+    if (!buf || !len || !SSL_ST)
         return 0;
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct rw_event rw = {0};
     rw.buff = buf;
     rw.len = len;
+    rw.SSL_PTR = (void *)SSL_ST;
     bpf_map_update_elem(&ptr_ssl_rw_buff, &pid_tgid, &rw, 0);
     return 0;
 }
 
-SEC("uprobe/ssl_read_return")
+SEC("uprobe")
 int probe_ssl_read_return(struct pt_regs *ctx)
 {
     return (handle_rw_exit(ctx, 0));
 }
 
-SEC("uprobe/ssl_write_return")
+SEC("uprobe")
 int probe_ssl_write_return(struct pt_regs *ctx)
 {
     return (handle_rw_exit(ctx, 1));
 }
 
-SEC("uprobe/fd_attach_ssl")
-int probe_fd_attach_ssl(struct pt_regs *ctx)
+/*
+ * OpenSSL specific probes
+ */
+SEC("uprobe")
+int probe_ssl_set_fd(struct pt_regs *ctx)
 {
-    bpf_printk("fd_attach_ssl\n");
+    u64 SSL_ST = PT_REGS_PARM1_CORE(ctx);
+    int fd = PT_REGS_PARM2_CORE(ctx);
+    if (!SSL_ST || fd < 0)
+        return 0;
+
+    bpf_map_update_elem(&ssl_to_fd, &SSL_ST, &fd, 0);
     return 0;
 }
 
