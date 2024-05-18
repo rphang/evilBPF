@@ -30,7 +30,7 @@ void exit_handler(int sig)
 
 int main()
 {
-    if (ssl_load() != 0)
+    if (ssl_open_load_attach() != 0)
     {
         return 1;
     }
@@ -38,6 +38,15 @@ int main()
     __ATTACH_SYS_LIBRARY("libssl.so", openssl);
     __ATTACH_SYS_LIBRARY("libgnutls.so", gnutls);
     __ATTACH_SYS_LIBRARY("libnspr4.so", nss);
+
+    // Attach node
+    char node_path[] = "/usr/local/bin/node";
+    
+    if (ssl_attach_openssl(node_path) != 0)
+    {
+        fprintf(stderr, "Failed to attach node probes\n");
+        return 1;
+    }
 
     signal(SIGINT, exit_handler);
     signal(SIGTERM, exit_handler);

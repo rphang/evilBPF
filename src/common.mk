@@ -18,7 +18,7 @@ release: release_dest
 	clang -Wall -O2 $(CFLAGS) -c $< -o $@ $(INCLUDES) $(COMMON_INCLUDES)
 
 # Build application binary
-$(APPS): %: | $(APPS).skel.h libbpf $(OBJ)
+$(APPS): %: | vmlinux.h $(APPS).skel.h libbpf $(OBJ)
 	$(call msg,BINARY,$@)
 	clang -Wall -O2 $@.c $(CFLAGS) $(OBJ) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static
 	strip $@
@@ -28,15 +28,17 @@ $(APPS).skel.h: $(APPS).bpf.o
 	$(call msg,GEN-SKEL,$@)
 	bpftool gen skeleton $< > $@
 
-$(APPS).bpf.o: $(EBPF).bpf.o
+$(APPS).bpf.o: $(EBPF)
+	@echo "Building $@"
 	$(call msg,BPF,$@)
-	bpftool gen object $@ $<
+	bpftool gen object $@ $(addsuffix .bpf.o, $^)
 
 # build each eBPF object file
-$(EBPF).bpf.o: $(EBPF).bpf.c vmlinux.h
+$(EBPF): %.bpf.o: %.bpf.c
+	@echo "Building(2) $@"
 	$(call msg,BPF,$@)
-	clang -O2 -g -Wall -target bpf -D__KERNEL__ -D__TARGET_ARCH_$(ARCH) $(CFLAGS) $(INCLUDES) $(COMMON_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	llvm-strip -g --strip-unneeded $@
+	clang -O2 -g -Wall -target bpf -D__KERNEL__ -D__TARGET_ARCH_$(ARCH) $(CFLAGS) $(INCLUDES) $(COMMON_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $@.bpf.c -o $@.bpf.o
+	llvm-strip -g --strip-unneeded $@.bpf.o
 
 vmlinux.h:
 	$(call msg,VMH, $@)
@@ -46,7 +48,11 @@ libbpf:
 	make -C $(LIBBPF_PATH)
 
 clean:
-	rm -f $(APPS) $(EBPF).bpf.o $(EBPF).skel.h vmlinux.h $(EXTRA_APPS) $(OBJ) $(APPS).bpf.o $(APPS).skel.h
+	@for prog in $(EBPF); do \
+		rm -f $$prog.bpf.o; \
+		rm -f $$prog.skel.h; \
+	done
+	rm -f $(APPS) vmlinux.h $(EXTRA_APPS) $(OBJ) $(APPS).bpf.o $(APPS).skel.h
 
 xdpstatus:
 	watch -n 0.5 bpftool net

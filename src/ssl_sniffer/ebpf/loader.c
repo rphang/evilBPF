@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <bpf/libbpf.h>
+#include <bpf/bpf.h>
 
 #include "ebpf/loader.h"
-#include "ebpf/struct_bpf.h"
+#include "ebpf/chunks.h"
 
 #include "sniffer.skel.h"
 
@@ -55,11 +56,11 @@ void ssl_set_debug(int enable)
 }
 
 /**
- * @brief Load the BPF program
+ * @brief Open, load and attach the BPF program
  *
  * @return int 0 if the BPF program is loaded successfully, 1 otherwise
  */
-int ssl_load()
+int ssl_open_load_attach()
 {
     int err;
     skel = sniffer_bpf__open();
@@ -75,6 +76,23 @@ int ssl_load()
         fprintf(stderr, "Failed to load BPF skeleton\n");
         return 1;
     }
+
+    int map_prog_array_fd = bpf_map__fd(skel->maps.tailcall_map);
+    int prog_fd = bpf_program__fd(skel->progs.recursive_chunks);
+    int index = REC_CHUNK_RB_PROG;
+    err = bpf_map_update_elem(map_prog_array_fd, &index, &prog_fd, BPF_ANY);
+    if (err)
+    {
+        fprintf(stderr, "Failed to update tailcall map: %d\n", err);
+        return 1;
+    }
+
+    err = sniffer_bpf__attach(skel);
+    if (err)
+    {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        return 1;
+    }
     return 0;
 }
 
@@ -86,11 +104,19 @@ int ssl_load()
  */
 int ssl_attach_openssl(char *program_path)
 {
-    __ATTACH_UPROBE(program_path, "SSL_set_fd", probe_fd_attach_ssl, false);
+    // FD resolution
+    __ATTACH_UPROBE(program_path, "SSL_set_fd", probe_ssl_set_fd, false);
+    __ATTACH_UPROBE(program_path, "SSL_set_wfd", wtf, false);
+    __ATTACH_UPROBE(program_path, "SSL_set_rfd", wtf, false);
+    // SSL read/write
     __ATTACH_UPROBE(program_path, "SSL_write", probe_ssl_rw_enter, false);
     __ATTACH_UPROBE(program_path, "SSL_write", probe_ssl_write_return, true);
     __ATTACH_UPROBE(program_path, "SSL_read", probe_ssl_rw_enter, false);
     __ATTACH_UPROBE(program_path, "SSL_read", probe_ssl_read_return, true);
+    __ATTACH_UPROBE(program_path, "SSL_read_ex", probe_ex_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "SSL_read_ex", probe_ssl_read_return, true);
+    __ATTACH_UPROBE(program_path, "SSL_write_ex", probe_ex_ssl_rw_enter, false);
+    __ATTACH_UPROBE(program_path, "SSL_write_ex", probe_ssl_write_return, true);
     return 0;
 }
 
@@ -128,10 +154,11 @@ int ssl_attach_nss(char *program_path)
     return 0;
 }
 
-static void log_event(struct data_event *event)
+static void log_event(struct chunk_event *event)
 {
     char *op = event->op == 1 ? "SSL_OP_READ" : "SSL_OP_WRITE";
-    fprintf(stdout, "[+] %s(%d), ts: %llu, op: %s, len: %d --> \n", event->comm, event->pid, event->ts, op, event->len);
+    fprintf(stdout, "--------------------------------------------------\n");
+    fprintf(stdout, "[+|%llu-%d] %s(%d), ts: %llu, op: %s, len: %d,  --> \n", event->key, event->part, event->comm, event->pid, event->ts, op, event->len);
     for (int i = 0; i < event->len; i++)
     {
         fprintf(stdout, "%c", event->data[i]);
@@ -141,7 +168,7 @@ static void log_event(struct data_event *event)
 
 static int handle_event(void *ctx, void *data, size_t len)
 {
-    struct data_event *event = (struct data_event *)data;
+    struct chunk_event *event = (struct chunk_event *)data;
     log_event(event);
     return 0;
 }

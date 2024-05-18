@@ -1,6 +1,6 @@
 APPS  := hider
 EXTRA_APPS := finder
-EBPF  := hider
+EBPF  := prog
 ROOTDIR := $(abspath $(CURDIR)/../)
 
 all: $(APPS) finder
