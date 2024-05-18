@@ -2,7 +2,8 @@
 #include "bpf_helper.h"
 
 // Maps
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(key_size, sizeof(int));
     __uint(value_size, sizeof(int));
@@ -14,35 +15,42 @@ int icmp_prog_reply(struct xdp_md *ctx)
 {
     // Read packet data into buffer
     void *data_end = (void *)(long)ctx->data_end;
-    void *data     = (void *)(long)ctx->data;
-   
+    void *data = (void *)(long)ctx->data;
+
     struct ethhdr *eth = data;
-	struct iphdr *iph = (struct iphdr *)(eth + 1);
-	struct icmphdr *icmph = (struct icmphdr *)(iph + 1);
+    struct iphdr *iph = (struct iphdr *)(eth + 1);
+    struct icmphdr *icmph = (struct icmphdr *)(iph + 1);
 
     if (overflow(eth, data_end))
         return XDP_DROP; // ethernet header is not complete
 
     if (ntohs(eth->h_proto) != 0x0800) // We can later see how to handle VLAN tagged packets or IPv6
-        return XDP_PASS; // let any other packets than IP (L3) pass
+        return XDP_PASS;               // let any other packets than IP (L3) pass
 
     if (overflow(iph, data_end))
         return XDP_DROP; // ip header is not complete
-        
+
     if (iph->protocol != IPPROTO_ICMP)
         return XDP_PASS; // let any other packets than ICMP pass
-    
+
     if (overflow(icmph, data_end))
         return XDP_DROP; // icmp header is not complete
-    
-    if (icmph->type == 8) {
+
+    if (icmph->type == 8)
+    {
+        bpf_printk("Received ICMP echo request\n");
         // Fetch the flag from the map
         int key = 0;
         // On some high network load, the map lookup may slow down the network
         // We can use a local variable to store the flag and update it every 10 seconds
         // Or have a static counter to update it every X packets
         int *flag = bpf_map_lookup_elem(&icmp_settings, &key);
-        if (flag) {
+        if (!flag)
+        {
+            return XDP_DROP;
+        }
+        if (*flag == 1) // If the flag is set, drop the packet
+        {
             return XDP_DROP;
         }
         // change the type to 0 (echo reply)
@@ -63,7 +71,8 @@ int icmp_prog_reply(struct xdp_md *ctx)
         return XDP_TX;
     }
 
-    if (icmph->type == 0) {
+    if (icmph->type == 0)
+    {
         return XDP_PASS;
     }
 
