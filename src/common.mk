@@ -4,9 +4,9 @@ LIBBPF_FLAGS = -I$(LIBBPF_PATH) -L$(LIBBPF_PATH) -l:libbpf.a -lbpf
 COMMON_INCLUDES = -I.
 RELEASE_DIR  = $(ROOTDIR)/../dst
 
-all: vmlinux.h $(APPS)
+all: $(APPS)
 
-release_dest: vmlinux.h $(APPS)
+release_dest: $(APPS)
 	mkdir -p $(RELEASE_DIR)
 	cp $(APPS) $(RELEASE_DIR)
 
@@ -18,7 +18,7 @@ release: release_dest
 	clang -Wall -O2 $(CFLAGS) -c $< -o $@ $(INCLUDES) $(COMMON_INCLUDES)
 
 # Build application binary
-$(APPS): %: | $(APPS).skel.h libbpf $(OBJ)
+$(APPS): %: | vmlinux.h $(APPS).skel.h libbpf $(OBJ)
 	$(call msg,BINARY,$@)
 	clang -Wall -O2 $@.c $(CFLAGS) $(OBJ) $(LIBBPF_FLAGS) -lelf -lz -o $@ -static
 	strip $@
