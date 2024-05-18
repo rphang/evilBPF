@@ -71,6 +71,12 @@ struct
 /*
  * Kernel tracing for FDs
  */
+SEC("tp/syscalls/sys_enter_accept")
+int accept_entrypoint(struct trace_event_raw_sys_enter *ctx)
+{
+    u64 pidtgid = bpf_get_current_pid_tgid();
+    u64 key = pidtgid << 32; // doesn't matter much we care about the return value
+}
 
 SEC("tp/syscalls/sys_enter_connect")
 int connect_entrypoint(struct trace_event_raw_sys_enter *ctx)
@@ -91,7 +97,8 @@ int connect_entrypoint(struct trace_event_raw_sys_enter *ctx)
         // Only interested in IPv4 and IPv6 (not UNIX sockets yet)
         return 0;
     }
-    struct connect_event event = {0};
+    struct fd_event event = {0};
+    event.type = FD_TYPE_CONNECT;
     event.ts = bpf_ktime_get_ns();
     event.pidtgid = key;
     event.con_type = sockfd;
@@ -123,15 +130,21 @@ int connect_entrypoint(struct trace_event_raw_sys_enter *ctx)
         }
     }
 
-    bpf_map_update_elem(&connect_events_maps, &key, &event, 0);
+    bpf_map_update_elem(&fd_events_maps, &key, &event, 0);
     return 0;
 }
 
+/*
+ * @brief Recursive function to process and send chunks of SSL data to user space
+ *
+ * @param ctx BPF context
+ * @return int 0
+ */
 SEC("uprobe")
 int recursive_chunks(struct pt_regs *ctx)
 {
     u64 ptid = bpf_get_current_pid_tgid();
-    u64 key = ptid; // PID + SMP processor ID (that should be unique enough)
+    u64 key = ptid; // PID + SMP processor ID (that should be unique enough... i was wrong.)
     key = (key << 32) | bpf_get_smp_processor_id();
     struct chunk_processing *cp = bpf_map_lookup_elem(&chunk_processing_map, &key);
     if (!cp)
@@ -212,24 +225,29 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
     int *fd = bpf_map_lookup_elem(&ssl_to_fd, &event->SSL_PTR);
     if (fd)
     {
-        u64 connect_key = pid_tgid << 32 | *fd;
-        struct connect_event *connect_event = bpf_map_lookup_elem(&connect_events_maps, &connect_key);
+        u64 fd_key = pid_tgid << 32 | *fd;
+        bpf_printk("handle_rw_exit: Found fd %d\n", *fd);
+        struct fd_event *connect_event = bpf_map_lookup_elem(&fd_events_maps, &fd_key);
         if (connect_event)
         {
-            bpf_printk("handle_rw_exit: (Outgoing) Found connect event\n");
+            if (connect_event->type == FD_TYPE_CONNECT)
+            {
+                bpf_printk("handle_rw_exit: (Outgoing) Found connect event\n");
+            }
+            else if (connect_event->type == FD_TYPE_ACCEPT)
+            {
+                bpf_printk("handle_rw_exit: (Incoming) Found accept event\n");
+            }
             if (connect_event->family == AF_INET)
             {
-                bpf_printk("IP: %d.%d.%d.X\n", connect_event->dst_ipv4[0], connect_event->dst_ipv4[1], connect_event->dst_ipv4[2]);
+                bpf_printk("dst IP: %d.%d.%d.X\n", connect_event->dst_ipv4[0], connect_event->dst_ipv4[1], connect_event->dst_ipv4[2]);
             }
             else if (connect_event->family == AF_INET6)
             {
-                bpf_printk("IP: %x:%x:%x:...\n", bpf_ntohs(connect_event->dst_ipv6[0]), bpf_ntohs(connect_event->dst_ipv6[1]), bpf_ntohs(connect_event->dst_ipv6[2]));
+                bpf_printk("dst IP: %x:%x:%x:...\n", bpf_ntohs(connect_event->dst_ipv6[0]), bpf_ntohs(connect_event->dst_ipv6[1]), bpf_ntohs(connect_event->dst_ipv6[2]));
             }
-            bpf_printk("Port: %d", connect_event->port);
+            bpf_printk("dst Port: %d", connect_event->port);
         }
-        // clean
-        bpf_map_delete_elem(&ssl_to_fd, &event->SSL_PTR);
-        bpf_map_delete_elem(&connect_events_maps, &connect_key);
     }
 
     u64 *buf = &event->buff;
@@ -311,6 +329,13 @@ int probe_ssl_set_fd(struct pt_regs *ctx)
         return 0;
 
     bpf_map_update_elem(&ssl_to_fd, &SSL_ST, &fd, 0);
+    return 0;
+}
+
+SEC("uprobe")
+int wtf(struct pt_regs *ctx)
+{
+    bpf_printk("wtf\n");
     return 0;
 }
 

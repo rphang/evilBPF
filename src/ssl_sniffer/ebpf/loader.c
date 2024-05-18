@@ -56,11 +56,11 @@ void ssl_set_debug(int enable)
 }
 
 /**
- * @brief Load the BPF program
+ * @brief Open, load and attach the BPF program
  *
  * @return int 0 if the BPF program is loaded successfully, 1 otherwise
  */
-int ssl_load()
+int ssl_open_load_attach()
 {
     int err;
     skel = sniffer_bpf__open();
@@ -106,6 +106,8 @@ int ssl_attach_openssl(char *program_path)
 {
     // FD resolution
     __ATTACH_UPROBE(program_path, "SSL_set_fd", probe_ssl_set_fd, false);
+    __ATTACH_UPROBE(program_path, "SSL_set_wfd", wtf, false);
+    __ATTACH_UPROBE(program_path, "SSL_set_rfd", wtf, false);
     // SSL read/write
     __ATTACH_UPROBE(program_path, "SSL_write", probe_ssl_rw_enter, false);
     __ATTACH_UPROBE(program_path, "SSL_write", probe_ssl_write_return, true);

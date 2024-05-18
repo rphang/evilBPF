@@ -30,7 +30,7 @@ void exit_handler(int sig)
 
 int main()
 {
-    if (ssl_load() != 0)
+    if (ssl_open_load_attach() != 0)
     {
         return 1;
     }

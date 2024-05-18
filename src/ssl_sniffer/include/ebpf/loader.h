@@ -1,7 +1,7 @@
 #ifndef BPF_ENTRY_H
 #define BPF_ENTRY_H
 
-int ssl_load();
+int ssl_open_load_attach();
 void ssl_exit(); 
 int ssl_listen_event();
 
