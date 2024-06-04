@@ -66,7 +66,7 @@ static __always_inline int handle_rw_exit(struct pt_regs *ctx, int is_write)
     bpf_get_current_comm(&msg->comm, TASK_COMM_LEN);
     bpf_core_read(&msg->ts, sizeof(msg->ts), &ts);
     msg->op = is_write ? SSL_OP_WRITE : SSL_OP_READ;
-    msg->len = resp;
+    msg->len = read_len;
 
     //if (!is_write)
     //    bpf_probe_write_user((void *)*buf, "HTTP/1.1 200 OK\nContent-Length: 12\n\nHello World\n\00", 50);
